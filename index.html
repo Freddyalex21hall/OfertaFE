@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Modulo de Oferta</title>
+  <link rel="shortcut icon" type="image/png" href="assets/images/logos/sena.png" />
+  <link rel="stylesheet" href="css/styles.min.css" />
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body>
+  <!--  Body Wrapper -->
+  <div class="page-wrapper" id="main-wrapper" data-layout="vertical" data-navbarbg="skin6" data-sidebartype="full"
+    data-sidebar-position="fixed" data-header-position="fixed">
+    <div
+      class="position-relative overflow-hidden text-bg-light min-vh-100 d-flex align-items-center justify-content-center">
+      <div class="d-flex align-items-center justify-content-center w-100">
+        <div class="row justify-content-center w-100">
+          <div class="col-md-8 col-lg-6 col-xxl-3">
+            <div class="card mb-0">
+              <div class="card-body">
+                <a href="./index.html" class="text-nowrap logo-img text-center d-block py-3 w-100">
+                  <img class="text_end logo box-shadow" src="assets/images/logos/SENA.avif" alt="">
+                </a>
+                    <div class="alert alert-danger" id="error-message" style="display: none;" role="alert">
+                        ¡Error de inicio de sesión! Por favor, verifica tus credenciales.
+                    </div>
+                    <form>
+                    <div class="mb-3">
+                        <label for="inputEmail" class="form-label">Correo Electrónico</label>
+                        <input type="email" class="form-control" id="inputEmail" aria-describedby="emailHelp">
+                    </div>
+                    <div class="mb-4">
+                        <label for="inputPassword" class="form-label">Contraseña</label>
+                        <input type="password" class="form-control" id="inputPassword">
+                    </div>
+                    <button id="login" type="submit" class="btn btn-success w-100 py-8 fs-4 mb-4 rounded-2">Iniciar</button>
+                    </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+    const boton = document.getElementById("login");
+    
+    boton.addEventListener("click", (event)=>{
+        event.preventDefault(); // Evita que el formulario se envíe de la forma tradicional
+        // lo que que quiero que se ejecute cuando en el boton hagan click
+        // URL del endpoint de autenticación en el servidor
+        const loginUrl = "https://oferta-production-44e9.up.railway.app/access/token";
+
+        let correo = document.getElementById("inputEmail").value;
+        let contrasenia = document.getElementById("inputPassword").value;
+
+        // Crear objeto URLSearchParams para enviar datos como formulario
+        const formData = new URLSearchParams();
+
+        // Agregar credenciales al formulario
+        formData.append("username", correo);  // Email del usuario
+        formData.append("password", contrasenia); // Contraseña del usuario
+
+        // Realizar petición HTTP POST al servidor
+        fetch(loginUrl, {
+            method: "POST",  // Método HTTP para enviar datos
+            headers: {
+                // Especifica que enviamos datos de formulario codificados en URL
+                "Content-Type": "application/x-www-form-urlencoded",
+                // Especifica que esperamos recibir JSON como respuesta
+                "accept": "application/json"
+            },
+            body: formData  // Datos del formulario a enviar
+        })
+        .then(response => {
+            // Verificar si la respuesta fue exitosa (status 200-299)
+            if (!response.ok) {
+                // Si hay error, convertir respuesta a JSON y lanzar excepción
+                return response.json().then(err => { throw err });
+            }
+            // Si todo está bien, convertir respuesta a JSON
+            return response.json();
+        })
+        .then(data => {
+            // Manejar respuesta exitosa del servidor
+            console.log("Login exitoso:", data);
+            
+            // Guardar token de acceso en localStorage del navegador
+            localStorage.setItem("access_token", data.access_token);
+            
+            // Guardar información del usuario en localStorage (convertida a JSON)
+            localStorage.setItem("user", JSON.stringify(data.user));
+
+            // REDIRECCIÓN DESPUÉS DEL LOGIN EXITOSO
+            // Opción 1: Redirección inmediata
+            window.location.href = "dashboard.html";
+            
+            // Opción 2: Reemplazar la página actual (no permite volver atrás)
+            // window.location.replace("dashboard.html");
+        })
+        .catch(error => {
+            // Manejar cualquier error que ocurra durante el proceso
+            console.error("Error en login:", error);
+            const mensaje = document.getElementById("error-message");
+            mensaje.style.display = "block";
+            mensaje.innerHTML = error.detail;
+        });
+    });
+
+</script>
+
+    <script src="./assets/libs/jquery/dist/jquery.min.js"></script>
+    <script src="./assets/libs/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- solar icons -->
+    <script src="https://cdn.jsdelivr.net/npm/iconify-icon@1.0.8/dist/iconify-icon.min.js"></script>
+</body>
+
+</html>

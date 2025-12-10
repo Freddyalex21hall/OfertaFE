@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Histórico - SENA Risaralda</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/styles.min.css">
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <!-- Header Principal -->
+  <header class="header-bg">
+    <div class="container-fluid">
+      <div class="d-flex justify-content-between align-items-center">
+        <h4 class="mb-0"><i class="fas fa-graduation-cap"></i> Sistema de Gestión SENA Risaralda</h4>
+        <nav class="nav">
+          <div class="nav-item"><a class="nav-link" href="../dashboard.html"><i class="fas fa-home"></i> Inicio</a></div>
+          <div class="nav-item"><a class="nav-link active" href="oferta.html"><i class="fas fa-book"></i> Ofertas</a></div>
+          <div class="nav-item"><a class="nav-link" href="metas.html"><i class="fas fa-chart-line"></i> Metas</a></div>
+          <div class="nav-item"><a class="nav-link" href="egresados.html"><i class="fas fa-users"></i> Egresados</a></div>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <!-- Sub Navegación -->
+  <div class="sub-nav">
+    <div class="container-fluid">
+      <div class="sub-nav-container">
+        <div class="sub-nav-menu">
+          <a href="../dashboard.html" class="sub-nav-btn">
+            <i class="fas fa-home"></i> <span>Inicio</span>
+          </a>
+          <a href="pages/historico.html" class="sub-nav-btn active">
+            <i class="fas fa-history"></i> <span>Histórico</span>
+          </a>
+          <a href="pages/catalogo.html" class="sub-nav-btn">
+            <i class="fas fa-book-open"></i> <span>Catálogos</span>
+          </a>
+          <a href="pages/validacion.html" class="sub-nav-btn">
+            <i class="fas fa-check-circle"></i> <span>Validación</span>
+          </a>
+          <a href="pages/registro-calificado.html" class="sub-nav-btn">
+            <i class="fas fa-file-upload"></i> <span>Registro Calificado</span>
+          </a>
+        </div>
+        
+        <!-- Hamburger Menu Button -->
+        <button class="hamburger-menu" id="hamburgerBtn">
+          <i class="fas fa-bars"></i> Menú
+        </button>
+      </div>
+      
+      <!-- Mobile Menu Dropdown -->
+      <div class="mobile-menu-dropdown" id="mobileMenu">
+        <a href="oferta.html" class="mobile-menu-item">
+          <i class="fas fa-home"></i>
+          <span>Inicio</span>
+        </a>
+        <a href="historico.html" class="mobile-menu-item active">
+          <i class="fas fa-history"></i>
+          <span>Histórico</span>
+        </a>
+        <a href="gestion.html" class="mobile-menu-item">
+          <i class="fas fa-edit"></i>
+          <span>Gestión de Ofertas</span>
+        </a>
+        <a href="reportes.html" class="mobile-menu-item">
+          <i class="fas fa-file-alt"></i>
+          <span>Reportes</span>
+        </a>
+        <a href="catalogos.html" class="mobile-menu-item">
+          <i class="fas fa-book-open"></i>
+          <span>Catálogos</span>
+        </a>
+        <a href="validacion.html" class="mobile-menu-item">
+          <i class="fas fa-check-circle"></i>
+          <span>Validación Normativa</span>
+        </a>
+        <a href="registro-calificado.html" class="mobile-menu-item">
+          <i class="fas fa-file-upload"></i>
+          <span>Registro Calificado</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal personalizado -->
+  <div class="custom-modal" id="successModal">
+    <div class="modal-content-custom">
+      <div class="modal-header-custom">
+        <i class="fas fa-check-circle" id="modalIcon"></i>
+        <h3 id="modalTitle">¡Carga Completada!</h3>
+      </div>
+      <div class="modal-body-custom">
+        <h4 id="modalSubtitle">Resumen de la importación</h4>
+        <p class="text-muted" id="modalDescription">Se procesó el archivo correctamente</p>
+        
+        <div class="modal-stats">
+          <div class="modal-stat-item">
+            <div class="number text-success" id="modalNewRecords">0</div>
+            <div class="label">Registros Nuevos</div>
+          </div>
+          <div class="modal-stat-item">
+            <div class="number text-warning" id="modalDuplicates">0</div>
+            <div class="label">Duplicados</div>
+          </div>
+          <div class="modal-stat-item">
+            <div class="number text-primary" id="modalTotalRecords">0</div>
+            <div class="label">Total en Sistema</div>
+          </div>
+        </div>
+        
+        <div id="modalAlerts">
+          <div class="alert alert-success d-none" id="alertSuccess" style="font-size: 0.9rem;">
+            <i class="fas fa-check-circle"></i> <span id="successMessage"></span>
+          </div>
+          <div class="alert alert-warning d-none" id="alertWarning" style="font-size: 0.9rem;">
+            <i class="fas fa-exclamation-triangle"></i> <span id="warningMessage"></span>
+          </div>
+          <div class="alert alert-info d-none" id="alertInfo" style="font-size: 0.9rem;">
+            <i class="fas fa-info-circle"></i> Los datos se han guardado automáticamente
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer-custom">
+        <button class="modal-btn modal-btn-primary" onclick="closeSuccessModal()">
+          Entendido <i class="fas fa-check"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contenido: HISTÓRICO -->
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Panel de Filtros -->
+      <div class="col-md-3 filter-panel">
+        <h5 class="mb-3"><i class="fas fa-filter"></i> Filtros de Búsqueda</h5>
+        
+        <!-- Zona de carga de archivos -->
+        <div class="upload-zone mb-4" id="uploadZone">
+          <i class="fas fa-file-excel fa-3x text-success mb-2"></i>
+          <p class="mb-2"><strong>Cargar archivo Excel</strong></p>
+          <p class="small text-muted">Click o arrastra el archivo aquí</p>
+          <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
+        </div>
+
+        <div class="stats-card">
+          <div class="d-flex justify-content-between">
+            <div>
+              <p class="mb-1 small">Total Registros</p>
+              <h4 class="mb-0" id="totalRecords">0</h4>
+            </div>
+            <div>
+              <p class="mb-1 small">Filtrados</p>
+              <h4 class="mb-0" id="filteredRecords">0</h4>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filter-group">
+          <label>Buscar en todos los campos</label>
+          <input type="text" class="form-control form-control-sm" id="searchAll" placeholder="Buscar...">
+        </div>
+
+        <div class="filter-group">
+          <label>Nombre Regional</label>
+          <select class="form-select form-select-sm" id="filterRegional">
+            <option value="">Todos</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>Centro de Formación</label>
+          <select class="form-select form-select-sm" id="filterCentro">
+            <option value="">Todos</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>Programa de Formación</label>
+          <select class="form-select form-select-sm" id="filterPrograma">
+            <option value="">Todos</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>Nivel de Formación</label>
+          <select class="form-select form-select-sm" id="filterNivel">
+            <option value="">Todos</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>Modalidad</label>
+          <select class="form-select form-select-sm" id="filterModalidad">
+            <option value="">Todos</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>Estado de Ficha</label>
+          <select class="form-select form-select-sm" id="filterEstado">
+            <option value="">Todos</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>Municipio</label>
+          <select class="form-select form-select-sm" id="filterMunicipio">
+            <option value="">Todos</option>
+          </select>
+        </div>
+
+        <div class="d-grid gap-2 mt-3">
+          <button class="btn btn-success btn-sm" id="applyFilters"><i class="fas fa-check"></i> Aplicar Filtros</button>
+          <button class="btn btn-secondary btn-sm" id="clearFilters"><i class="fas fa-times"></i> Limpiar</button>
+          <button class="btn btn-primary btn-sm" id="exportExcel"><i class="fas fa-file-excel"></i> Exportar Excel</button>
+          <button class="btn btn-warning btn-sm" id="loadSampleData"><i class="fas fa-database"></i> Cargar Datos Ejemplo</button>
+          <button class="btn btn-danger btn-sm" id="clearAllData"><i class="fas fa-trash"></i> Borrar Todos los Datos</button>
+        </div>
+      </div>
+
+      <!-- Panel de Contenido -->
+      <div class="col-md-9 content-panel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5><i class="fas fa-table"></i> Ofertas Educativas - Histórico</h5>
+          <div>
+            <button class="btn btn-sm btn-info" id="btnStats"><i class="fas fa-chart-bar"></i> Estadísticas</button>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="mb-3">
+          <button class="btn-tab active" data-tab="all">Todas las Ofertas</button>
+          <button class="btn-tab" data-tab="active">Activas</button>
+          <button class="btn-tab" data-tab="closed">Cerradas</button>
+          <button class="btn-tab" data-tab="stats">Estadísticas</button>
+        </div>
+
+        <!-- Tabla de Ofertas -->
+        <div class="sub-table active" id="table-all">
+          <div class="table-responsive">
+            <table class="table table-striped table-hover table-sm" id="offersTable">
+              <thead class="table-dark">
+                <tr>
+                  <th>Estado</th>
+                  <th>Regional</th>
+                  <th>Centro</th>
+                  <th>Programa</th>
+                  <th>Nivel</th>
+                  <th>Modalidad</th>
+                  <th>Ficha</th>
+                  <th>Fecha Inicio</th>
+                  <th>Matriculados</th>
+                  <th>Certificados</th>
+                  <th>Municipio</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody">
+                <tr>
+                  <td colspan="11" class="text-center text-muted py-5">
+                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                    <p>No hay datos disponibles. Por favor, carga un archivo Excel.</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="sub-table" id="table-active">
+          <h6>Ofertas Activas</h6>
+          <div class="table-responsive">
+            <table class="table table-success table-sm">
+              <thead>
+                <tr>
+                  <th>Centro</th>
+                  <th>Programa</th>
+                  <th>Ficha</th>
+                  <th>Matriculados</th>
+                  <th>En Formación</th>
+                </tr>
+              </thead>
+              <tbody id="activeTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="sub-table" id="table-closed">
+          <h6>Ofertas Cerradas</h6>
+          <div class="table-responsive">
+            <table class="table table-secondary table-sm">
+              <thead>
+                <tr>
+                  <th>Centro</th>
+                  <th>Programa</th>
+                  <th>Ficha</th>
+                  <th>Certificados</th>
+                  <th>Tasa Éxito</th>
+                </tr>
+              </thead>
+              <tbody id="closedTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="sub-table" id="table-stats">
+          <h6>Resumen Estadístico</h6>
+          <div id="statsContent"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script type="module" src="../js/pages/historico.js"></script>
+  <script>
+    // Toggle Mobile Menu
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
+    const mobileMenu = document.getElementById('mobileMenu');
+    
+    if (hamburgerBtn) {
+      hamburgerBtn.addEventListener('click', () => {
+        mobileMenu.classList.toggle('show');
+        const icon = hamburgerBtn.querySelector('i');
+        if (mobileMenu.classList.contains('show')) {
+          icon.className = 'fas fa-times';
+        } else {
+          icon.className = 'fas fa-bars';
+        }
+      });
+    }
+    
+    document.addEventListener('click', (e) => {
+      if (mobileMenu && !mobileMenu.contains(e.target) && !hamburgerBtn.contains(e.target)) {
+        mobileMenu.classList.remove('show');
+        if (hamburgerBtn) hamburgerBtn.querySelector('i').className = 'fas fa-bars';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Catálogo de Programas - SENA Risaralda</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+  <!-- HEADER -->
+  <header class="header-bg">
+    <div class="container-fluid d-flex justify-content-between align-items-center">
+      <h4 class="mb-0"><i class="fas fa-book-open"></i> Sistema de Gestión SENA Risaralda</h4>
+      <nav class="nav">
+        <div class="nav-item"><a class="nav-link" href="index.html"><i class="fas fa-home"></i> Inicio</a></div>
+        <div class="nav-item"><a class="nav-link active" href="catalogo.html"><i class="fas fa-book"></i> Catálogo</a></div>
+        <div class="nav-item"><a class="nav-link" href="metas.html"><i class="fas fa-chart-line"></i> Metas</a></div>
+        <div class="nav-item"><a class="nav-link" href="egresados.html"><i class="fas fa-users"></i> Egresados</a></div>
+      </nav>
+    </div>
+  </header>
+
+  <!-- SUB-NAV -->
+  <div class="sub-nav">
+    <div class="container-fluid">
+      <div class="sub-nav-container">
+        <div class="sub-nav-menu">
+          <a href="oferta.html" class="sub-nav-btn">
+            <i class="fas fa-home"></i> <span>Inicio</span>
+          </a>
+          <a href="historico.html" class="sub-nav-btn">
+            <i class="fas fa-history"></i> <span>Histórico</span>
+          </a>
+          <a href="gestion.html" class="sub-nav-btn">
+            <i class="fas fa-edit"></i> <span>Gestión</span>
+          </a>
+          <a href="reportes.html" class="sub-nav-btn">
+            <i class="fas fa-file-alt"></i> <span>Reportes</span>
+          </a>
+          <a href="catalogo.html" class="sub-nav-btn active">
+            <i class="fas fa-book-open"></i> <span>Catálogos</span>
+          </a>
+          <a href="validacion.html" class="sub-nav-btn">
+            <i class="fas fa-check-circle"></i> <span>Validación</span>
+          </a>
+          <a href="registro-calificado.html" class="sub-nav-btn">
+            <i class="fas fa-file-upload"></i> <span>Registro Calificado</span>
+          </a>
+        </div>
+        <button class="hamburger-menu" id="hamburgerBtn"><i class="fas fa-bars"></i> Menú</button>
+      </div>
+      <div class="mobile-menu-dropdown" id="mobileMenu">
+        <a href="oferta.html" class="mobile-menu-item"><i class="fas fa-home"></i> Inicio</a>
+        <a href="catalogo.html" class="mobile-menu-item active"><i class="fas fa-book-open"></i> Catálogo</a>
+        <a href="registro-calificado.html" class="mobile-menu-item"><i class="fas fa-file-upload"></i> Registro Calificado</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="row">
+      <!-- PANEL IZQUIERDO -->
+      <div class="col-md-3 filter-panel">
+        <h5 class="mb-3"><i class="fas fa-filter"></i> Filtros de Búsqueda</h5>
+
+        <div class="upload-zone mb-4" id="uploadZone">
+          <i class="fas fa-file-excel fa-3x text-success mb-2"></i>
+          <p class="mb-2"><strong>Cargar archivo Excel o CSV</strong></p>
+          <p class="small text-muted">Click o arrastra el archivo aquí</p>
+          <input type="file" id="inputExcel" accept=".xlsx,.xls,.csv" style="display: none;">
+        </div>
+
+        <div class="stats-card">
+          <div class="d-flex justify-content-between">
+            <div>
+              <p class="mb-1 small">Total Registros</p>
+              <h4 class="mb-0" id="totalRecords">0</h4>
+            </div>
+            <div>
+              <p class="mb-1 small">Filtrados</p>
+              <h4 class="mb-0" id="filteredRecords">0</h4>
+            </div>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <label>Buscar en todos los campos</label>
+          <input type="text" class="form-control form-control-sm" id="searchAll" placeholder="Buscar...">
+        </div>
+
+        <div class="filter-group">
+          <label>Nivel de Formación</label>
+          <select class="form-select form-select-sm" id="filterNivel">
+            <option value="">Todos</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>Modalidad</label>
+          <select class="form-select form-select-sm" id="filterModalidad">
+            <option value="">Todas</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>Red Tecnológica</label>
+          <select class="form-select form-select-sm" id="filterRed">
+            <option value="">Todas</option>
+          </select>
+        </div>
+
+        <div class="d-grid gap-2 mt-3">
+          <button class="btn btn-success btn-sm" id="applyFilters"><i class="fas fa-check"></i> Aplicar Filtros</button>
+          <button class="btn btn-secondary btn-sm" id="clearFilters"><i class="fas fa-times"></i> Limpiar</button>
+          <button class="btn btn-primary btn-sm" id="exportExcel"><i class="fas fa-file-excel"></i> Exportar Excel</button>
+          <button class="btn btn-danger btn-sm" id="clearAllData"><i class="fas fa-trash"></i> Borrar Todos los Datos</button>
+        </div>
+      </div>
+
+      <!-- PANEL DERECHO -->
+      <div class="col-md-9 content-panel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5><i class="fas fa-book"></i> Catálogo de Programas</h5>
+        </div>
+
+        <div class="table-responsive">
+          <table id="tablaCatalogo" class="table table-striped table-hover table-sm">
+            <thead class="table-dark">
+              <tr>
+                <th>PRF_CODIGO</th>
+                <th>PRF_VERSION</th>
+                <th>PRF_DENOMINACION</th>
+                <th>NIVEL DE FORMACION</th>
+                <th>TIPO DE FORMACION</th>
+                <th>Red Tecnológica</th>
+                <th>Red de Conocimiento</th>
+                <th>Modalidad</th>
+                <th>Linea Tecnológica</th>
+                <th>Ocupación</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody">
+              <tr>
+                <td colspan="10" class="text-center text-muted py-5">
+                  <i class="fas fa-inbox fa-3x mb-3"></i>
+                  <p>No hay datos disponibles. Por favor, carga un archivo Excel o CSV.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE ÉXITO -->
+  <div class="custom-modal" id="successModal">
+    <div class="modal-content-custom">
+      <div class="modal-header-custom">
+        <i class="fas fa-check-circle"></i>
+        <h3>¡Carga Completada!</h3>
+      </div>
+      <div class="modal-body-custom">
+        <h4>Resumen de la importación</h4>
+        <p class="text-muted">Se procesó el archivo correctamente.</p>
+        <div class="modal-stats">
+          <div class="modal-stat-item">
+            <div class="number text-success" id="modalNewRecords">0</div>
+            <div class="label">Nuevos</div>
+          </div>
+          <div class="modal-stat-item">
+            <div class="number text-warning" id="modalDuplicates">0</div>
+            <div class="label">Duplicados</div>
+          </div>
+          <div class="modal-stat-item">
+            <div class="number text-primary" id="modalTotalRecords">0</div>
+            <div class="label">Total</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer-custom">
+        <button class="modal-btn modal-btn-primary" onclick="closeSuccessModal()">Entendido <i class="fas fa-check"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/catalogo.js"></script>
+  <script>
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
+    const mobileMenu = document.getElementById('mobileMenu');
+    if (hamburgerBtn) {
+      hamburgerBtn.addEventListener('click', () => {
+        mobileMenu.classList.toggle('show');
+        const icon = hamburgerBtn.querySelector('i');
+        icon.className = mobileMenu.classList.contains('show') ? 'fas fa-times' : 'fas fa-bars';
+      });
+    }
+  </script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
