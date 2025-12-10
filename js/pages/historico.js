@@ -1,4 +1,5 @@
 import { panelService } from '../api/panel.service.js';
+const MAX_RECORDS = 25000;
 // ===== VARIABLES GLOBALES =====
 let allData = [];
 let filteredData = [];
@@ -71,6 +72,11 @@ fileInput.addEventListener('change', (e) => {
 
 // ===== PROCESAR ARCHIVO EXCEL =====
 function processFile(file) {
+  const name = file?.name || '';
+  if (!/\.(xlsx|xls)$/i.test(name)) {
+    alert('Formato de archivo no soportado. Por favor, suba un Excel (.xlsx o .xls).');
+    return;
+  }
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
@@ -106,29 +112,26 @@ function processFile(file) {
 function addDataWithoutDuplicates(newData) {
   let addedCount = 0;
   let duplicateCount = 0;
+  let exceededCount = 0;
   const totalInFile = newData.length;
 
   newData.forEach(newRow => {
-    // Verificar si el registro ya existe
     const isDuplicate = allData.some(existingRow => {
-      // Comparar por FICHA (número de ficha) como identificador único
-      // Si FICHA existe en ambos registros, comparar por FICHA
       if (newRow.FICHA && existingRow.FICHA) {
         return String(newRow.FICHA).trim() === String(existingRow.FICHA).trim();
       }
-      
-      // Si no hay FICHA, comparar por combinación de campos clave
-      const keysMatch = 
+      const keysMatch =
         String(newRow.PROGRAMA_FORMACION || '').trim() === String(existingRow.PROGRAMA_FORMACION || '').trim() &&
         String(newRow.NOMBRE_CENTRO || '').trim() === String(existingRow.NOMBRE_CENTRO || '').trim() &&
         String(newRow.FECHA_INICIO || '').trim() === String(existingRow.FECHA_INICIO || '').trim() &&
         String(newRow.MODALIDAD_FORMACION || '').trim() === String(existingRow.MODALIDAD_FORMACION || '').trim();
-      
       return keysMatch;
     });
 
     if (isDuplicate) {
       duplicateCount++;
+    } else if (allData.length + addedCount >= MAX_RECORDS) {
+      exceededCount++;
     } else {
       allData.push(newRow);
       addedCount++;
@@ -141,6 +144,7 @@ function addDataWithoutDuplicates(newData) {
     totalInFile,
     addedCount,
     duplicateCount,
+    exceededCount,
     totalInSystem: allData.length
   };
 }
@@ -179,7 +183,7 @@ function renderTable() {
   if (filteredData.length === 0) {
     tableBody.innerHTML = `
       <tr>
-        <td colspan="11" class="text-center text-muted py-5">
+        <td colspan="33" class="text-center text-muted py-5">
           <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
           <p>No se encontraron resultados</p>
         </td>
@@ -190,19 +194,57 @@ function renderTable() {
   filteredData.forEach(row => {
     const tr = document.createElement('tr');
     const estado = getEstado(row.ESTADO_FICHA);
-    
+
+    const activos = row.ACTIVOS ?? 0;
+    const inscritos = row.INSCRITOS ?? 0;
+    const enTransito = row.EN_TRANSITO ?? 0;
+    const formacion = row.FORMACION ?? 0;
+    const induccion = row.INDUCCION ?? 0;
+    const condicionados = row.CONDICIONADOS ?? 0;
+    const aplazados = row.APLAZADOS ?? 0;
+    const retiradoVoluntario = row.RETIROS_VOLUNTARIOS ?? 0;
+    const cancelados = row.CANCELADOS ?? 0;
+    const reprobados = row.REPROBADOS ?? 0;
+    const noAptos = row.NO_APTOS ?? 0;
+    const reingresados = row.REINGRESADO ?? 0;
+    const porCertificar = row.POR_CERTIFICAR ?? 0;
+    const certificados = row.CERTIFICADOS ?? 0;
+    const trasladados = row.TRASLADADOS ?? 0;
+
     tr.innerHTML = `
       <td><span class="semaphore ${estado.color}"></span></td>
+      <td>${row.CODIGO_REGIONAL || ''}</td>
       <td>${row.NOMBRE_REGIONAL || ''}</td>
-      <td>${row.NOMBRE_CENTRO || ''}</td>
-      <td>${row.PROGRAMA_FORMACION || ''}</td>
-      <td><span class="badge bg-info">${row.NIVEL_FORMACION || ''}</span></td>
-      <td>${row.MODALIDAD_FORMACION || ''}</td>
       <td><strong>${row.FICHA || ''}</strong></td>
+      <td>${row.CODIGO_PROGRAMA || row.CODIGO_PROGRAMA_FORMACION || ''}</td>
+      <td>${row.CODIGO_CENTRO || ''}</td>
+      <td>${row.MODALIDAD_FORMACION || ''}</td>
+      <td>${row.JORNADA || ''}</td>
+      <td>${row.ETAPA_FICHA || ''}</td>
+      <td>${row.ESTADO_FICHA || ''}</td>
       <td>${row.FECHA_INICIO || ''}</td>
-      <td><span class="badge bg-primary">${row.MATRICULADOS || 0}</span></td>
-      <td><span class="badge bg-success">${row.CERTIFICADOS || 0}</span></td>
-      <td>${row.MUNICIPIO || ''}</td>
+      <td>${row.FECHA_FIN || ''}</td>
+      <td>${row.CODIGO_MUNICIPIO || ''}</td>
+      <td>${row.CODIGO_ESTRATEGIA || ''}</td>
+      <td>${row.CUPO_ASIGNADO ?? ''}</td>
+      <td><span class="badge bg-primary">${row.MATRICULADOS ?? 0}</span></td>
+      <td>${activos}</td>
+      <td>${row.HISTORICO ?? ''}</td>
+      <td>${row.CODIGO_FICHA_RELACIONADO || ''}</td>
+      <td>${inscritos}</td>
+      <td>${enTransito}</td>
+      <td>${formacion}</td>
+      <td>${induccion}</td>
+      <td>${condicionados}</td>
+      <td>${aplazados}</td>
+      <td>${retiradoVoluntario}</td>
+      <td>${cancelados}</td>
+      <td>${reprobados}</td>
+      <td>${noAptos}</td>
+      <td>${reingresados}</td>
+      <td>${porCertificar}</td>
+      <td><span class="badge bg-success">${certificados}</span></td>
+      <td>${trasladados}</td>
     `;
     tableBody.appendChild(tr);
   });
@@ -408,9 +450,14 @@ document.getElementById('btnStats').addEventListener('click', () => {
             `).join('')}
           </tbody>
         </table>
+        <div class="mt-3">
+          <h6 class="mb-2">Top 5 centros por aprendices matriculados</h6>
+          <div id="chartCentroFormacion"></div>
+        </div>
       </div>
     </div>
   `;
+  imprimirGraficaCentros(filteredData);
 });
 
 // ===== CALCULAR ESTADÍSTICAS =====
@@ -572,7 +619,7 @@ function generateSampleData() {
 
 // ===== MOSTRAR MODAL DE ÉXITO =====
 function showSuccessModal(result) {
-  const { totalInFile, addedCount, duplicateCount, totalInSystem } = result;
+  const { totalInFile, addedCount, duplicateCount, exceededCount, totalInSystem } = result;
   
   // Actualizar números en el modal
   document.getElementById('modalNewRecords').textContent = addedCount;
@@ -589,6 +636,8 @@ function showSuccessModal(result) {
   document.getElementById('alertSuccess').classList.add('d-none');
   document.getElementById('alertWarning').classList.add('d-none');
   document.getElementById('alertInfo').classList.add('d-none');
+  const alertDangerEl = document.getElementById('alertDanger');
+  if (alertDangerEl) alertDangerEl.classList.add('d-none');
   
   if (duplicateCount === 0 && addedCount > 0) {
     // Todos los registros fueron agregados
@@ -601,7 +650,7 @@ function showSuccessModal(result) {
     document.getElementById('successMessage').textContent = `${addedCount} registro(s) nuevo(s) agregado(s) al sistema`;
     document.getElementById('alertInfo').classList.remove('d-none');
     
-  } else if (duplicateCount > 0 && addedCount > 0) {
+  } else if (duplicateCount > 0 && addedCount > 0 && (!exceededCount || exceededCount === 0)) {
     // Algunos duplicados encontrados
     modalIcon.className = 'fas fa-exclamation-circle';
     modalTitle.textContent = 'Carga Completada con Observaciones';
@@ -616,7 +665,7 @@ function showSuccessModal(result) {
     
     document.getElementById('alertInfo').classList.remove('d-none');
     
-  } else if (duplicateCount > 0 && addedCount === 0) {
+  } else if (duplicateCount > 0 && addedCount === 0 && (!exceededCount || exceededCount === 0)) {
     // Todos son duplicados
     modalIcon.className = 'fas fa-info-circle';
     modalTitle.textContent = 'Sin Cambios';
@@ -625,6 +674,23 @@ function showSuccessModal(result) {
     
     document.getElementById('alertWarning').classList.remove('d-none');
     document.getElementById('warningMessage').textContent = `Los ${duplicateCount} registros del archivo ya existen en el sistema. No se agregaron datos nuevos.`;
+  }
+
+  if (exceededCount && exceededCount > 0) {
+    modalIcon.className = 'fas fa-times-circle';
+    modalTitle.textContent = 'Límite de registros excedido';
+    modalSubtitle.textContent = 'Algunos registros no se agregaron por límite máximo';
+    modalDescription.textContent = `Se intentaron agregar ${totalInFile} registros, pero ${exceededCount} superan el máximo permitido (${MAX_RECORDS}).`;
+    if (alertDangerEl) {
+      alertDangerEl.classList.remove('d-none');
+      const dangerMessage = document.getElementById('dangerMessage');
+      if (dangerMessage) dangerMessage.textContent = `${exceededCount} registro(s) rechazado(s) por superar el límite máximo (${MAX_RECORDS}).`;
+    }
+    document.getElementById('alertInfo').classList.remove('d-none');
+    if (addedCount > 0) {
+      document.getElementById('alertSuccess').classList.remove('d-none');
+      document.getElementById('successMessage').textContent = `${addedCount} registro(s) nuevo(s) agregado(s)`;
+    }
   }
   
   // Mostrar el modal
@@ -655,22 +721,41 @@ async function loadFromAPI(getter, ...args){
     const data = Array.isArray(res) ? res : (res && res.data ? res.data : []);
     if(!Array.isArray(data)) return;
     allData = data.map(r => ({
+      CODIGO_REGIONAL: String(r.cod_regional || ''),
       NOMBRE_REGIONAL: r.nombre_regional || '',
-      NOMBRE_CENTRO: String(r.cod_centro || ''),
-      PROGRAMA_FORMACION: String(r.cod_programa || ''),
-      NIVEL_FORMACION: '',
+      CODIGO_CENTRO: String(r.cod_centro || ''),
+      NOMBRE_CENTRO: r.nombre_centro || String(r.cod_centro || ''),
+      CODIGO_PROGRAMA: String(r.cod_programa || ''),
+      PROGRAMA_FORMACION: r.programa_formacion || String(r.cod_programa || ''),
+      NIVEL_FORMACION: r.nivel_formacion || '',
       MODALIDAD_FORMACION: r.modalidad || '',
+      JORNADA: r.jornada || '',
+      ETAPA_FICHA: r.etapa_ficha || '',
       FICHA: r.ficha || '',
       FECHA_INICIO: r.fecha_inicio || '',
       FECHA_FIN: r.fecha_fin || '',
       ESTADO_FICHA: r.estado_curso || '',
+      CODIGO_MUNICIPIO: String(r.cod_municipio || ''),
+      CODIGO_ESTRATEGIA: String(r.cod_estrategia || ''),
+      CUPO_ASIGNADO: r.cupo_asignado ?? '',
+      HISTORICO: r.id_historico ?? r.historico ?? '',
+      CODIGO_FICHA_RELACIONADO: String(r.cod_ficha_relacionado ?? r.id_grupo ?? ''),
       MATRICULADOS: r.num_aprendices_matriculados ?? r.num_aprendices_activos ?? 0,
-      CERTIFICADOS: r.num_aprendices_certificados ?? 0,
-      MUNICIPIO: String(r.cod_municipio || ''),
+      ACTIVOS: r.num_aprendices_activos ?? 0,
       INSCRITOS: r.num_aprendices_inscritos ?? 0,
       EN_TRANSITO: r.num_aprendices_en_transito ?? 0,
       FORMACION: r.num_aprendices_formacion ?? 0,
-      INDUCCION: r.num_aprendices_induccion ?? 0
+      INDUCCION: r.num_aprendices_induccion ?? 0,
+      CONDICIONADOS: r.num_aprendices_condicionados ?? 0,
+      APLAZADOS: r.num_aprendices_aplazados ?? 0,
+      RETIROS_VOLUNTARIOS: r.num_aprendices_retirado_voluntario ?? 0,
+      CANCELADOS: r.num_aprendices_cancelados ?? 0,
+      REPROBADOS: r.num_aprendices_reprobados ?? 0,
+      NO_APTOS: r.num_aprendices_no_aptos ?? 0,
+      REINGRESADO: r.num_aprendices_reingresados ?? 0,
+      POR_CERTIFICAR: r.num_aprendices_por_certificar ?? 0,
+      CERTIFICADOS: r.num_aprendices_certificados ?? 0,
+      TRASLADADOS: r.num_aprendices_trasladados ?? 0
     }));
     filteredData = [...allData];
     saveDataToMemory();
@@ -699,7 +784,28 @@ async function fetchHistoricoPorJornada(jornada){
 async function fetchHistoricoPorMunicipio(cod){
   await loadFromAPI(panelService.porCodMunicipio, cod);
 }
-if(allData.length === 0){
-  fetchHistoricoTodos();
-}
+fetchHistoricoTodos();
 export { fetchHistoricoTodos, fetchHistoricoPorCentro, fetchHistoricoPorPrograma, fetchHistoricoPorFicha, fetchHistoricoPorJornada, fetchHistoricoPorMunicipio };
+
+function imprimirGraficaCentros(data){
+  const totals = {};
+  (Array.isArray(data) ? data : []).forEach(r => {
+    const centro = r.NOMBRE_CENTRO || String(r.CODIGO_CENTRO || '') || 'Sin Centro';
+    const val = parseInt(r.MATRICULADOS) || 0;
+    totals[centro] = (totals[centro] || 0) + val;
+  });
+  const entries = Object.entries(totals).sort((a,b) => b[1]-a[1]).slice(0,5);
+  const labels = entries.map(e => e[0]);
+  const series = entries.map(e => e[1]);
+  const options = {
+    series: series.length ? series : [10, 8, 6, 4, 2],
+    chart: { width: 420, type: 'pie' },
+    labels: labels.length ? labels : ['Centro A','Centro B','Centro C','Centro D','Centro E'],
+    responsive: [{ breakpoint: 480, options: { chart: { width: 260 }, legend: { position: 'bottom' } } }]
+  };
+  const el = document.querySelector('#chartCentroFormacion');
+  if (!el) return;
+  el.innerHTML = '';
+  const chart = new ApexCharts(el, options);
+  chart.render();
+}

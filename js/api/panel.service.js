@@ -1,7 +1,13 @@
 import { request } from './apiClient.js';
 
 export const panelService = {
-    getHistorico: () => request('/historico/obtener-todos'),
+    getHistorico: () => {
+        const endpoint = `/historico/obtener-todos`;
+        
+        let respuesta = request(endpoint);
+
+        return respuesta;
+    },
     porGrupo: (id_grupo) => request(`/historico/obtener-por-grupo/${id_grupo}`),
     porFicha: (ficha) => request(`/historico/obtener-por-ficha/${ficha}`),
     porCodPrograma: (cod_programa) => request(`/historico/obtener-por-cod_programa/${cod_programa}`),
