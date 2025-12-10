@@ -3,6 +3,8 @@ const MAX_RECORDS = 25000;
 // ===== VARIABLES GLOBALES =====
 let allData = [];
 let filteredData = [];
+let currentPage = 1;
+const PAGE_SIZE = 50;
 
 // ===== CARGAR DATOS DESDE SESSIONSTORAGE AL INICIO =====
 function loadDataFromMemory() {
@@ -188,10 +190,15 @@ function renderTable() {
           <p>No se encontraron resultados</p>
         </td>
       </tr>`;
+    renderPagination();
     return;
   }
 
-  filteredData.forEach(row => {
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const end = start + PAGE_SIZE;
+  const pageData = filteredData.slice(start, end);
+
+  pageData.forEach(row => {
     const tr = document.createElement('tr');
     const estado = getEstado(row.ESTADO_FICHA);
 
@@ -251,6 +258,7 @@ function renderTable() {
 
   renderActiveTable();
   renderClosedTable();
+  renderPagination();
 }
 
 // ===== DETERMINAR ESTADO DE LA FICHA =====
@@ -357,6 +365,7 @@ document.getElementById('applyFilters').addEventListener('click', () => {
            matchNivel && matchModalidad && matchEstado && matchMunicipio;
   });
 
+  currentPage = 1;
   renderTable();
   updateStats();
 });
@@ -366,6 +375,7 @@ document.getElementById('clearFilters').addEventListener('click', () => {
   searchAll.value = '';
   document.querySelectorAll('.filter-group select').forEach(select => select.value = '');
   filteredData = [...allData];
+  currentPage = 1;
   renderTable();
   updateStats();
 });
@@ -492,6 +502,7 @@ document.getElementById('loadSampleData').addEventListener('click', () => {
   
   saveDataToMemory();
   populateFilters();
+  currentPage = 1;
   renderTable();
   updateStats();
   
@@ -760,6 +771,7 @@ async function loadFromAPI(getter, ...args){
     filteredData = [...allData];
     saveDataToMemory();
     populateFilters();
+    currentPage = 1;
     renderTable();
     updateStats();
   }catch(err){
@@ -809,3 +821,51 @@ function imprimirGraficaCentros(data){
   const chart = new ApexCharts(el, options);
   chart.render();
 }
+
+function renderPagination(){
+  const total = filteredData.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (currentPage > totalPages) currentPage = totalPages;
+  const pageInfo = document.getElementById('pageInfo');
+  if (pageInfo) pageInfo.textContent = `Página ${currentPage} de ${totalPages}`;
+  const btnPrev = document.getElementById('btnPrevPage');
+  const btnNext = document.getElementById('btnNextPage');
+  if (btnPrev) btnPrev.disabled = currentPage <= 1;
+  if (btnNext) btnNext.disabled = currentPage >= totalPages;
+  const inputPage = document.getElementById('inputPageNumber');
+  if (inputPage) inputPage.value = String(currentPage);
+}
+
+document.getElementById('btnPrevPage')?.addEventListener('click', () => {
+  if (currentPage > 1){
+    currentPage--;
+    renderTable();
+  }
+});
+document.getElementById('btnNextPage')?.addEventListener('click', () => {
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
+  if (currentPage < totalPages){
+    currentPage++;
+    renderTable();
+  }
+});
+
+document.getElementById('btnGoToPage')?.addEventListener('click', () => {
+  const input = document.getElementById('inputPageNumber');
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
+  let v = parseInt(input?.value || '1', 10);
+  if (isNaN(v) || v < 1) v = 1;
+  if (v > totalPages) v = totalPages;
+  currentPage = v;
+  renderTable();
+});
+document.getElementById('inputPageNumber')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter'){
+    const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
+    let v = parseInt(e.target.value || '1', 10);
+    if (isNaN(v) || v < 1) v = 1;
+    if (v > totalPages) v = totalPages;
+    currentPage = v;
+    renderTable();
+  }
+});

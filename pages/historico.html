@@ -298,6 +298,20 @@
               </tbody>
             </table>
           </div>
+          <div class="d-flex justify-content-between align-items-center mt-2" id="pagination">
+            <div class="small">Mostrando 50 por página</div>
+            <div class="d-flex align-items-center gap-2">
+              <div class="btn-group">
+                <button class="btn btn-sm btn-outline-secondary" id="btnPrevPage">Anterior</button>
+                <span class="mx-2 small" id="pageInfo">Página 1 de 1</span>
+                <button class="btn btn-sm btn-outline-secondary" id="btnNextPage">Siguiente</button>
+              </div>
+              <div class="input-group input-group-sm" style="max-width: 160px;">
+                <input type="number" min="1" class="form-control" id="inputPageNumber" placeholder="Ir a pág." />
+                <button class="btn btn-outline-primary" id="btnGoToPage">Ir</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="sub-table" id="table-active">
