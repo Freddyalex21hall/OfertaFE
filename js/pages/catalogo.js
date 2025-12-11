@@ -1,294 +1,572 @@
 import { catalogoService } from '../api/catalogo.service.js';
 
+const MAX_RECORDS = 25000;
 // ===== VARIABLES GLOBALES =====
-let selectedFile = null;
+let allData = [];
+let filteredData = [];
+let currentPage = 1;
+const PAGE_SIZE = 50;
+let tableColumns = [];
+
+// ===== CARGAR DATOS DESDE SESSIONSTORAGE AL INICIO =====
+function loadDataFromMemory() {
+  try {
+    const dataStr = sessionStorage.getItem('senaCatalogoData');
+    if (dataStr) {
+      return JSON.parse(dataStr);
+    }
+  } catch (e) {
+    console.error('Error al cargar datos:', e);
+  }
+  return [];
+}
+
+// ===== GUARDAR DATOS EN SESSIONSTORAGE =====
+function saveDataToMemory() {
+  try {
+    const dataStr = JSON.stringify(allData);
+    sessionStorage.setItem('senaCatalogoData', dataStr);
+    sessionStorage.setItem('senaCatalogoLastUpdate', new Date().toISOString());
+  } catch (e) {
+    console.error('Error al guardar datos:', e);
+  }
+}
+
+// ===== INICIALIZAR DATOS =====
+allData = loadDataFromMemory();
+filteredData = [...allData];
 
 // ===== ELEMENTOS DEL DOM =====
+const uploadZone = document.getElementById('uploadZone');
 const fileInput = document.getElementById('fileInput');
-const filePreview = document.getElementById('filePreview');
-const fileName = document.getElementById('fileName');
-const fileSize = document.getElementById('fileSize');
-const dropZone = document.getElementById('dropZone');
-const dropZoneContent = document.getElementById('dropZoneContent');
-const btnSelectFile = document.getElementById('btnSelectFile');
-const btnRemoveFile = document.getElementById('btnRemoveFile');
-const btnUploadFile = document.getElementById('btnUploadFile');
+const searchAll = document.getElementById('searchAll');
+const tableBody = document.getElementById('tableBody');
+const tableHeader = document.getElementById('tableHeader');
+const statsContent = document.getElementById('statsContent');
+const totalRecords = document.getElementById('totalRecords');
+const filteredRecords = document.getElementById('filteredRecords');
 
-// ===== FUNCIÓN PARA VALIDAR ARCHIVO =====
-function validateFile(file) {
-  const validTypes = [
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-    'application/vnd.ms-excel' // .xls
-  ];
-  
-  if (!validTypes.includes(file.type)) {
-    alert('Por favor selecciona un archivo Excel válido (.xlsx o .xls)');
-    return false;
-  }
-  
-  // Validar tamaño máximo (10MB)
-  const maxSize = 10 * 1024 * 1024;
-  if (file.size > maxSize) {
-    alert('El archivo es demasiado grande. Tamaño máximo: 10MB');
-    return false;
-  }
-  
-  return true;
-}
+// ===== MANEJO DE CARGA DE ARCHIVOS =====
+uploadZone.addEventListener('click', () => fileInput.click());
 
-// ===== FUNCIÓN PARA MOSTRAR ARCHIVO SELECCIONADO =====
-function displaySelectedFile(file) {
-  selectedFile = file;
-  fileName.textContent = file.name;
-  fileSize.textContent = formatFileSize(file.size);
-  
-  // Ocultar zona de drop y mostrar preview
-  dropZone.style.display = 'none';
-  filePreview.style.display = 'block';
-}
-
-// ===== FUNCIÓN PARA LIMPIAR SELECCIÓN =====
-function clearSelection() {
-  selectedFile = null;
-  fileInput.value = '';
-  dropZone.style.display = 'flex';
-  filePreview.style.display = 'none';
-  
-  // Ocultar progreso y estado
-  const uploadProgress = document.getElementById('uploadProgress');
-  const uploadStatus = document.getElementById('uploadStatus');
-  uploadProgress.style.display = 'none';
-  uploadStatus.style.display = 'none';
-}
-
-// ===== EVENTO: CLICK EN BOTÓN SELECCIONAR ARCHIVO =====
-btnSelectFile.addEventListener('click', () => {
-  fileInput.click();
-});
-
-// ===== EVENTO: CLICK EN ZONA DE DROP =====
-dropZone.addEventListener('click', (e) => {
-  if (e.target !== btnSelectFile && !btnSelectFile.contains(e.target)) {
-    fileInput.click();
-  }
-});
-
-// ===== EVENTO: CAMBIO EN INPUT DE ARCHIVO =====
-fileInput.addEventListener('change', (event) => {
-  const file = event.target.files[0];
-  if (file && validateFile(file)) {
-    displaySelectedFile(file);
-  } else {
-    clearSelection();
-  }
-});
-
-// ===== EVENTO: REMOVER ARCHIVO SELECCIONADO =====
-btnRemoveFile.addEventListener('click', () => {
-  clearSelection();
-});
-
-// ===== EVENTOS DRAG & DROP =====
-dropZone.addEventListener('dragover', (e) => {
+uploadZone.addEventListener('dragover', (e) => {
   e.preventDefault();
-  dropZone.classList.add('drag-over');
+  uploadZone.style.borderColor = '#0056b3';
+  uploadZone.style.background = '#e9ecef';
 });
 
-dropZone.addEventListener('dragleave', (e) => {
-  e.preventDefault();
-  dropZone.classList.remove('drag-over');
+uploadZone.addEventListener('dragleave', () => {
+  uploadZone.style.borderColor = '#007bff';
+  uploadZone.style.background = '#f8f9fa';
 });
 
-dropZone.addEventListener('drop', (e) => {
+uploadZone.addEventListener('drop', (e) => {
   e.preventDefault();
-  dropZone.classList.remove('drag-over');
-  
-  const files = e.dataTransfer.files;
-  if (files.length > 0) {
-    const file = files[0];
-    if (validateFile(file)) {
-      // Asignar el archivo al input
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(file);
-      fileInput.files = dataTransfer.files;
+  uploadZone.style.borderColor = '#007bff';
+  uploadZone.style.background = '#f8f9fa';
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+});
+
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) processFile(file);
+});
+
+// ===== PROCESAR ARCHIVO EXCEL =====
+function processFile(file) {
+  const name = file?.name || '';
+  if (!/\.(xlsx|xls)$/i.test(name)) {
+    alert('Formato de archivo no soportado. Por favor, suba un Excel (.xlsx o .xls).');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
       
-      displaySelectedFile(file);
+      if (!jsonData || jsonData.length === 0) {
+        alert('El archivo no contiene datos válidos');
+        return;
+      }
+
+      // Subir archivo a la API
+      try {
+        await catalogoService.uploadExcelCatalogo(file);
+      } catch (error) {
+        console.error('Error al subir a la API:', error);
+        alert('Error al subir el archivo a la API, pero se mostrará localmente');
+      }
+
+      // Detectar duplicados
+      const result = addDataWithoutDuplicates(jsonData);
+      
+      saveDataToMemory();
+      extractColumns();
+      populateFilters();
+      renderTable();
+      updateStats();
+      
+      showSuccessModal(result);
+    } catch (error) {
+      console.error('Error procesando archivo:', error);
+      alert('Error al procesar el archivo Excel. Verifica el formato.');
     }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ===== AGREGAR DATOS SIN DUPLICADOS =====
+function addDataWithoutDuplicates(newData) {
+  let addedCount = 0;
+  let duplicateCount = 0;
+  let exceededCount = 0;
+  const totalInFile = newData.length;
+
+  newData.forEach(newRow => {
+    const isDuplicate = allData.some(existingRow => {
+      // Comparar por código de programa o nombre
+      const codigoMatch = (newRow.CODIGO_PROGRAMA || newRow['Código Programa']) && 
+                          (existingRow.CODIGO_PROGRAMA || existingRow['Código Programa']) &&
+                          String(newRow.CODIGO_PROGRAMA || newRow['Código Programa']).trim() === 
+                          String(existingRow.CODIGO_PROGRAMA || existingRow['Código Programa']).trim();
+      
+      if (codigoMatch) return true;
+      
+      // Si no hay código, comparar por nombre de programa
+      const nombreMatch = Object.keys(newRow).some(key => {
+        if (key.toLowerCase().includes('programa') || key.toLowerCase().includes('nombre')) {
+          return Object.keys(existingRow).some(existingKey => {
+            if (existingKey.toLowerCase().includes('programa') || existingKey.toLowerCase().includes('nombre')) {
+              return String(newRow[key] || '').trim() === String(existingRow[existingKey] || '').trim();
+            }
+            return false;
+          });
+        }
+        return false;
+      });
+      
+      return nombreMatch;
+    });
+
+    if (isDuplicate) {
+      duplicateCount++;
+    } else if (allData.length + addedCount >= MAX_RECORDS) {
+      exceededCount++;
+    } else {
+      allData.push(newRow);
+      addedCount++;
+    }
+  });
+
+  filteredData = [...allData];
+
+  return {
+    totalInFile,
+    addedCount,
+    duplicateCount,
+    exceededCount,
+    totalInSystem: allData.length
+  };
+}
+
+// ===== EXTRAER COLUMNAS DEL ARCHIVO =====
+function extractColumns() {
+  if (allData.length === 0) return;
+  tableColumns = Object.keys(allData[0]);
+}
+
+// ===== POBLAR FILTROS DINÁMICAMENTE =====
+function populateFilters() {
+  const filters = {
+    filterCentro: ['NOMBRE_CENTRO', 'Centro', 'Centro de Formación'],
+    filterPrograma: ['PROGRAMA_FORMACION', 'Programa', 'Nombre Programa', 'Programa de Formación'],
+    filterNivel: ['NIVEL_FORMACION', 'Nivel', 'Nivel de Formación'],
+    filterModalidad: ['MODALIDAD_FORMACION', 'Modalidad']
+  };
+
+  Object.keys(filters).forEach(filterId => {
+    const select = document.getElementById(filterId);
+    const possibleFields = filters[filterId];
+    
+    // Buscar cuál campo existe en los datos
+    const field = possibleFields.find(f => tableColumns.includes(f));
+    
+    if (field) {
+      const uniqueValues = [...new Set(allData.map(item => item[field]).filter(Boolean))].sort();
+      
+      select.innerHTML = '<option value="">Todos</option>';
+      uniqueValues.forEach(value => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
+      });
+      select.dataset.field = field; // Guardar el campo que se está usando
+    }
+  });
+}
+
+// ===== RENDERIZAR TABLA PRINCIPAL =====
+function renderTable() {
+  // Renderizar encabezado
+  tableHeader.innerHTML = '';
+  tableColumns.forEach(column => {
+    const th = document.createElement('th');
+    th.textContent = column;
+    tableHeader.appendChild(th);
+  });
+
+  tableBody.innerHTML = '';
+
+  if (filteredData.length === 0) {
+    tableBody.innerHTML = `
+      <tr>
+        <td colspan="${tableColumns.length}" class="text-center text-muted py-5">
+          <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+          <p>No se encontraron resultados</p>
+        </td>
+      </tr>`;
+    renderPagination();
+    return;
   }
+
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const end = start + PAGE_SIZE;
+  const pageData = filteredData.slice(start, end);
+
+  pageData.forEach(row => {
+    const tr = document.createElement('tr');
+    tableColumns.forEach(column => {
+      const td = document.createElement('td');
+      td.textContent = row[column] || '';
+      tr.appendChild(td);
+    });
+    tableBody.appendChild(tr);
+  });
+
+  renderPagination();
+}
+
+// ===== ACTUALIZAR ESTADÍSTICAS =====
+function updateStats() {
+  totalRecords.textContent = allData.length;
+  filteredRecords.textContent = filteredData.length;
+}
+
+// ===== APLICAR FILTROS =====
+document.getElementById('applyFilters').addEventListener('click', () => {
+  const searchAllValue = searchAll.value.toLowerCase();
+  const centro = document.getElementById('filterCentro').value;
+  const programa = document.getElementById('filterPrograma').value;
+  const nivel = document.getElementById('filterNivel').value;
+  const modalidad = document.getElementById('filterModalidad').value;
+
+  filteredData = allData.filter(row => {
+    const matchSearch = !searchAllValue || Object.values(row).some(val => 
+      String(val).toLowerCase().includes(searchAllValue)
+    );
+    
+    const matchCentro = !centro || row[document.getElementById('filterCentro').dataset.field] === centro;
+    const matchPrograma = !programa || row[document.getElementById('filterPrograma').dataset.field] === programa;
+    const matchNivel = !nivel || row[document.getElementById('filterNivel').dataset.field] === nivel;
+    const matchModalidad = !modalidad || row[document.getElementById('filterModalidad').dataset.field] === modalidad;
+
+    return matchSearch && matchCentro && matchPrograma && matchNivel && matchModalidad;
+  });
+
+  currentPage = 1;
+  renderTable();
+  updateStats();
 });
 
-// ===== EVENTO: SUBIR ARCHIVO =====
-btnUploadFile.addEventListener('click', async () => {
-  if (!selectedFile) {
-    alert('Por favor selecciona un archivo primero');
+// ===== LIMPIAR FILTROS =====
+document.getElementById('clearFilters').addEventListener('click', () => {
+  searchAll.value = '';
+  document.querySelectorAll('.filter-group select').forEach(select => select.value = '');
+  filteredData = [...allData];
+  currentPage = 1;
+  renderTable();
+  updateStats();
+});
+
+// ===== EXPORTAR A EXCEL =====
+document.getElementById('exportExcel').addEventListener('click', () => {
+  if (filteredData.length === 0) {
+    alert('No hay datos para exportar');
     return;
   }
   
-  await uploadCatalogo();
+  const ws = XLSX.utils.json_to_sheet(filteredData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Catálogo');
+  XLSX.writeFile(wb, `Catalogo_${new Date().toISOString().slice(0,10)}.xlsx`);
 });
 
-// ===== FUNCIÓN PARA SUBIR EL CATÁLOGO =====
-async function uploadCatalogo() {
-  const uploadProgress = document.getElementById('uploadProgress');
-  const progressBar = document.getElementById('progressBar');
-  const progressPercentage = document.getElementById('progressPercentage');
-  const progressText = document.getElementById('progressText');
-  const uploadStatus = document.getElementById('uploadStatus');
-  const statusMessage = document.getElementById('statusMessage');
+// ===== CAMBIAR ENTRE TABS =====
+document.querySelectorAll('.btn-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.btn-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    
+    document.querySelectorAll('.sub-table').forEach(t => t.classList.remove('active'));
+    document.getElementById(`table-${btn.dataset.tab}`).classList.add('active');
+  });
+});
+
+// ===== BOTÓN DE ESTADÍSTICAS =====
+document.getElementById('btnStats').addEventListener('click', () => {
+  const stats = calculateStats();
   
-  try {
-    // Deshabilitar botones y mostrar progreso
-    btnUploadFile.disabled = true;
-    btnRemoveFile.disabled = true;
-    btnUploadFile.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Subiendo...';
-    uploadProgress.style.display = 'block';
-    progressBar.style.width = '50%';
-    progressPercentage.textContent = '50%';
-    
-    // Realizar la petición
-    const response = await catalogoService.uploadExcelCatalogo(selectedFile);
-    
-    // Actualizar progreso a completado
-    progressBar.style.width = '100%';
-    progressPercentage.textContent = '100%';
-    progressBar.classList.remove('progress-bar-animated');
-    progressText.innerHTML = '<i class="fas fa-check-circle text-success"></i> ¡Archivo subido exitosamente!';
-    
-    // Guardar información de la carga
-    catalogoService.saveUploadInfo({
-      fileName: selectedFile.name,
-      fileSize: selectedFile.size,
-      response: response
-    });
-    
-    // Mostrar modal de éxito
-    setTimeout(() => {
-      showSuccessModal(response);
-      clearSelection();
-      loadLastUploadInfo();
-    }, 1500);
-    
-  } catch (error) {
-    console.error('Error al subir el catálogo:', error);
-    
-    // Mostrar mensaje de error
-    progressBar.classList.remove('bg-success');
-    progressBar.classList.add('bg-danger');
-    progressBar.classList.remove('progress-bar-animated');
-    progressText.innerHTML = '<i class="fas fa-times-circle text-danger"></i> Error al subir el archivo';
-    
-    statusMessage.className = 'alert alert-danger';
-    statusMessage.innerHTML = `
-      <i class="fas fa-exclamation-triangle"></i>
-      <strong>Error:</strong> ${error.message || 'No se pudo subir el archivo'}
-    `;
-    uploadStatus.style.display = 'block';
-    
-  } finally {
-    // Restaurar botones
-    btnUploadFile.disabled = false;
-    btnRemoveFile.disabled = false;
-    btnUploadFile.innerHTML = '<i class="fas fa-upload"></i> Subir Archivo';
-    
-    // Ocultar progreso después de un delay si hubo error
-    setTimeout(() => {
-      if (progressBar.classList.contains('bg-danger')) {
-        uploadProgress.style.display = 'none';
-        progressBar.classList.remove('bg-danger');
-        progressBar.classList.add('bg-success');
-        progressBar.classList.add('progress-bar-animated');
-        progressBar.style.width = '0%';
-        progressPercentage.textContent = '0%';
-        progressText.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo archivo...';
-      }
-    }, 5000);
-  }
+  statsContent.innerHTML = `
+    <div class="row">
+      <div class="col-md-4">
+        <div class="card text-center mb-3">
+          <div class="card-body">
+            <h5 class="card-title">Total Programas</h5>
+            <h2 class="text-primary">${stats.totalProgramas}</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card text-center mb-3">
+          <div class="card-body">
+            <h5 class="card-title">Centros</h5>
+            <h2 class="text-success">${stats.totalCentros}</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card text-center mb-3">
+          <div class="card-body">
+            <h5 class="card-title">Modalidades</h5>
+            <h2 class="text-info">${stats.totalModalidades}</h2>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header bg-primary text-white">
+        <strong>Resumen por Centro</strong>
+      </div>
+      <div class="card-body">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>Centro</th>
+              <th>Programas</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${stats.porCentro.map(c => `
+              <tr>
+                <td>${c.centro}</td>
+                <td>${c.programas}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+});
+
+// ===== CALCULAR ESTADÍSTICAS =====
+function calculateStats() {
+  const totalProgramas = filteredData.length;
+  
+  // Buscar campo de centro
+  const centroField = ['NOMBRE_CENTRO', 'Centro', 'Centro de Formación'].find(f => tableColumns.includes(f));
+  const modalidadField = ['MODALIDAD_FORMACION', 'Modalidad'].find(f => tableColumns.includes(f));
+  
+  const centros = {};
+  const modalidades = new Set();
+  
+  filteredData.forEach(row => {
+    if (centroField) {
+      const centro = row[centroField] || 'Sin centro';
+      centros[centro] = (centros[centro] || 0) + 1;
+    }
+    if (modalidadField && row[modalidadField]) {
+      modalidades.add(row[modalidadField]);
+    }
+  });
+
+  const porCentro = Object.keys(centros).map(centro => ({
+    centro,
+    programas: centros[centro]
+  }));
+
+  return { 
+    totalProgramas, 
+    totalCentros: Object.keys(centros).length,
+    totalModalidades: modalidades.size,
+    porCentro 
+  };
 }
 
 // ===== MOSTRAR MODAL DE ÉXITO =====
-function showSuccessModal(response) {
+function showSuccessModal(result) {
+  const { totalInFile, addedCount, duplicateCount, exceededCount, totalInSystem } = result;
+  
+  document.getElementById('modalNewRecords').textContent = addedCount;
+  document.getElementById('modalDuplicates').textContent = duplicateCount;
+  document.getElementById('modalTotalRecords').textContent = totalInSystem;
+  
   const modalIcon = document.getElementById('modalIcon');
   const modalTitle = document.getElementById('modalTitle');
   const modalSubtitle = document.getElementById('modalSubtitle');
   const modalDescription = document.getElementById('modalDescription');
   
-  // Ocultar todas las alertas primero
   document.getElementById('alertSuccess').classList.add('d-none');
   document.getElementById('alertWarning').classList.add('d-none');
   document.getElementById('alertInfo').classList.add('d-none');
-  document.getElementById('alertDanger').classList.add('d-none');
+  const alertDangerEl = document.getElementById('alertDanger');
+  if (alertDangerEl) alertDangerEl.classList.add('d-none');
   
-  // Configurar modal según la respuesta
-  modalIcon.className = 'fas fa-check-circle';
-  modalTitle.textContent = '¡Catálogo Cargado!';
-  modalSubtitle.textContent = 'Carga exitosa';
-  modalDescription.textContent = 'El archivo Excel se procesó correctamente';
+  if (duplicateCount === 0 && addedCount > 0) {
+    modalIcon.className = 'fas fa-check-circle';
+    modalTitle.textContent = '¡Carga Exitosa!';
+    modalSubtitle.textContent = 'Todos los registros se agregaron correctamente';
+    modalDescription.textContent = `Se procesaron ${totalInFile} registros del archivo`;
+    
+    document.getElementById('alertSuccess').classList.remove('d-none');
+    document.getElementById('successMessage').textContent = `${addedCount} registro(s) nuevo(s) agregado(s) al sistema`;
+    document.getElementById('alertInfo').classList.remove('d-none');
+    
+  } else if (duplicateCount > 0 && addedCount > 0 && (!exceededCount || exceededCount === 0)) {
+    modalIcon.className = 'fas fa-exclamation-circle';
+    modalTitle.textContent = 'Carga Completada con Observaciones';
+    modalSubtitle.textContent = 'Se encontraron registros duplicados';
+    modalDescription.textContent = `Se procesaron ${totalInFile} registros del archivo`;
+    
+    document.getElementById('alertSuccess').classList.remove('d-none');
+    document.getElementById('successMessage').textContent = `${addedCount} registro(s) nuevo(s) agregado(s)`;
+    
+    document.getElementById('alertWarning').classList.remove('d-none');
+    document.getElementById('warningMessage').textContent = `${duplicateCount} registro(s) duplicado(s) no se agregaron (ya existen en el sistema)`;
+    
+    document.getElementById('alertInfo').classList.remove('d-none');
+    
+  } else if (duplicateCount > 0 && addedCount === 0 && (!exceededCount || exceededCount === 0)) {
+    modalIcon.className = 'fas fa-info-circle';
+    modalTitle.textContent = 'Sin Cambios';
+    modalSubtitle.textContent = 'Todos los registros ya existen';
+    modalDescription.textContent = `Se procesaron ${totalInFile} registros del archivo`;
+    
+    document.getElementById('alertWarning').classList.remove('d-none');
+    document.getElementById('warningMessage').textContent = `Los ${duplicateCount} registros del archivo ya existen en el sistema. No se agregaron datos nuevos.`;
+  }
+
+  if (exceededCount && exceededCount > 0) {
+    modalIcon.className = 'fas fa-times-circle';
+    modalTitle.textContent = 'Límite de registros excedido';
+    if (alertDangerEl) {
+      alertDangerEl.classList.remove('d-none');
+      const dangerMessage = document.getElementById('dangerMessage');
+      if (dangerMessage) dangerMessage.textContent = `${exceededCount} registro(s) rechazado(s) por superar el límite máximo (${MAX_RECORDS}).`;
+    }
+  }
   
-  // Mostrar mensaje de éxito
-  document.getElementById('alertSuccess').classList.remove('d-none');
-  document.getElementById('successMessage').textContent = response.message || 'El catálogo se cargó exitosamente en el sistema';
-  
-  document.getElementById('alertInfo').classList.remove('d-none');
-  
-  // Mostrar el modal
   document.getElementById('successModal').classList.add('show');
 }
 
-// ===== CARGAR INFORMACIÓN DE LA ÚLTIMA CARGA =====
-async function loadLastUploadInfo() {
-  const lastUploadInfo = await catalogoService.getLastUploadInfo();
-  const container = document.getElementById('lastUploadInfo');
-  
-  if (lastUploadInfo) {
-    const date = new Date(lastUploadInfo.timestamp);
-    const formattedDate = date.toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    
-    container.innerHTML = `
-      <div class="d-flex align-items-start mb-3">
-        <div class="flex-shrink-0">
-          <i class="fas fa-file-excel text-success fa-2x"></i>
-        </div>
-        <div class="flex-grow-1 ms-3">
-          <h6 class="mb-1"><strong>${lastUploadInfo.fileName}</strong></h6>
-          <p class="text-muted small mb-1">
-            <i class="fas fa-hdd"></i> ${formatFileSize(lastUploadInfo.fileSize)}
-          </p>
-          <p class="text-muted small mb-0">
-            <i class="fas fa-clock"></i> ${formattedDate}
-          </p>
-        </div>
-      </div>
-      <div class="alert alert-success mb-0 small">
-        <i class="fas fa-check-circle"></i> Carga completada exitosamente
-      </div>
-    `;
+// ===== CERRAR MODAL =====
+function closeSuccessModal() {
+  document.getElementById('successModal').classList.remove('show');
+}
+
+// Cerrar modal al hacer click fuera
+document.getElementById('successModal').addEventListener('click', (e) => {
+  if (e.target.id === 'successModal') {
+    closeSuccessModal();
   }
-}
-
-// ===== FUNCIÓN AUXILIAR PARA FORMATEAR TAMAÑO DE ARCHIVO =====
-function formatFileSize(bytes) {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-}
-
-// ===== INICIALIZAR EL MÓDULO =====
-async function Init() {
-  console.log('Módulo de Catálogo inicializado');
-  await loadLastUploadInfo();
-}
-
-// Inicializar al cargar la página
-document.addEventListener('DOMContentLoaded', () => {
-  Init();
 });
 
-export { Init };
+// Exponer función globalmente
+window.closeSuccessModal = closeSuccessModal;
+
+// ===== PAGINACIÓN =====
+function renderPagination(){
+  const total = filteredData.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (currentPage > totalPages) currentPage = totalPages;
+  const pageInfo = document.getElementById('pageInfo');
+  if (pageInfo) pageInfo.textContent = `Página ${currentPage} de ${totalPages}`;
+  const btnPrev = document.getElementById('btnPrevPage');
+  const btnNext = document.getElementById('btnNextPage');
+  if (btnPrev) btnPrev.disabled = currentPage <= 1;
+  if (btnNext) btnNext.disabled = currentPage >= totalPages;
+  const inputPage = document.getElementById('inputPageNumber');
+  if (inputPage) inputPage.value = String(currentPage);
+}
+
+document.getElementById('btnPrevPage')?.addEventListener('click', () => {
+  if (currentPage > 1){
+    currentPage--;
+    renderTable();
+  }
+});
+
+document.getElementById('btnNextPage')?.addEventListener('click', () => {
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
+  if (currentPage < totalPages){
+    currentPage++;
+    renderTable();
+  }
+});
+
+document.getElementById('btnGoToPage')?.addEventListener('click', () => {
+  const input = document.getElementById('inputPageNumber');
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
+  let v = parseInt(input?.value || '1', 10);
+  if (isNaN(v) || v < 1) v = 1;
+  if (v > totalPages) v = totalPages;
+  currentPage = v;
+  renderTable();
+});
+
+document.getElementById('inputPageNumber')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter'){
+    const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
+    let v = parseInt(e.target.value || '1', 10);
+    if (isNaN(v) || v < 1) v = 1;
+    if (v > totalPages) v = totalPages;
+    currentPage = v;
+    renderTable();
+  }
+});
+
+// ===== TOGGLE MOBILE MENU =====
+const hamburgerBtn = document.getElementById('hamburgerBtn');
+const mobileMenu = document.getElementById('mobileMenu');
+
+if (hamburgerBtn) {
+  hamburgerBtn.addEventListener('click', () => {
+    mobileMenu.classList.toggle('show');
+    const icon = hamburgerBtn.querySelector('i');
+    if (mobileMenu.classList.contains('show')) {
+      icon.className = 'fas fa-times';
+    } else {
+      icon.className = 'fas fa-bars';
+    }
+  });
+}
+
+document.addEventListener('click', (e) => {
+  if (mobileMenu && !mobileMenu.contains(e.target) && !hamburgerBtn.contains(e.target)) {
+    mobileMenu.classList.remove('show');
+    if (hamburgerBtn) hamburgerBtn.querySelector('i').className = 'fas fa-bars';
+  }
+});
+
+// ===== INICIALIZACIÓN =====
+if (allData.length > 0) {
+  extractColumns();
+  populateFilters();
+  renderTable();
+  updateStats();
+}
