@@ -161,7 +161,9 @@ function populateFilters() {
     filterPrograma: 'PROGRAMA_FORMACION',
     filterNivel: 'NIVEL_FORMACION',
     filterModalidad: 'MODALIDAD_FORMACION',
+    filterJornada: 'JORNADA',
     filterEstado: 'ESTADO_FICHA',
+    filterEstrategia: 'CODIGO_ESTRATEGIA',
     filterMunicipio: 'MUNICIPIO'
   };
 
@@ -353,8 +355,12 @@ document.getElementById('applyFilters').addEventListener('click', () => {
   const programa = document.getElementById('filterPrograma').value;
   const nivel = document.getElementById('filterNivel').value;
   const modalidad = document.getElementById('filterModalidad').value;
+  const jornada = document.getElementById('filterJornada').value;
   const estado = document.getElementById('filterEstado').value;
+  const estrategia = document.getElementById('filterEstrategia').value;
   const municipio = document.getElementById('filterMunicipio').value;
+  const fechaInicio = document.getElementById('filterFechaInicio').value;
+  const fechaFin = document.getElementById('filterFechaFin').value;
 
   filteredData = allData.filter(row => {
     const matchSearch = !searchAllValue || Object.values(row).some(val => 
@@ -365,11 +371,17 @@ document.getElementById('applyFilters').addEventListener('click', () => {
     const matchPrograma = !programa || row.PROGRAMA_FORMACION === programa;
     const matchNivel = !nivel || row.NIVEL_FORMACION === nivel;
     const matchModalidad = !modalidad || row.MODALIDAD_FORMACION === modalidad;
+    const matchJornada = !jornada || row.JORNADA === jornada;
     const matchEstado = !estado || row.ESTADO_FICHA === estado;
+    const matchEstrategia = !estrategia || row.CODIGO_ESTRATEGIA === estrategia;
     const matchMunicipio = !municipio || row.MUNICIPIO === municipio;
+    const rowInicio = row.FECHA_INICIO ? new Date(row.FECHA_INICIO) : null;
+    const rowFin = row.FECHA_FIN ? new Date(row.FECHA_FIN) : null;
+    const matchFechaInicio = !fechaInicio || (rowInicio && rowInicio >= new Date(fechaInicio));
+    const matchFechaFin = !fechaFin || (rowFin && rowFin <= new Date(fechaFin));
 
     return matchSearch && matchRegional && matchCentro && matchPrograma && 
-           matchNivel && matchModalidad && matchEstado && matchMunicipio;
+           matchNivel && matchModalidad && matchJornada && matchEstado && matchEstrategia && matchMunicipio && matchFechaInicio && matchFechaFin;
   });
 
   currentPage = 1;
@@ -380,10 +392,27 @@ document.getElementById('applyFilters').addEventListener('click', () => {
   updateStats();
 });
 
+document.querySelectorAll('.filter-group select').forEach(sel => {
+  sel.addEventListener('change', () => {
+    document.getElementById('applyFilters').click();
+  });
+});
+document.getElementById('searchAll')?.addEventListener('input', () => {
+  document.getElementById('applyFilters').click();
+});
+document.getElementById('filterFechaInicio')?.addEventListener('change', () => {
+  document.getElementById('applyFilters').click();
+});
+document.getElementById('filterFechaFin')?.addEventListener('change', () => {
+  document.getElementById('applyFilters').click();
+});
+
 // ===== LIMPIAR FILTROS =====
 document.getElementById('clearFilters').addEventListener('click', () => {
   searchAll.value = '';
   document.querySelectorAll('.filter-group select').forEach(select => select.value = '');
+  document.getElementById('filterFechaInicio')?.value = '';
+  document.getElementById('filterFechaFin')?.value = '';
   filteredData = [...allData];
   currentPage = 1;
   currentPage = 1;
@@ -978,17 +1007,48 @@ function setSelectOptions(selectId, values, currentValue){
 function updateDependentFilters(){
   const selectedRegional = document.getElementById('filterRegional')?.value || '';
   const selectedCentro = document.getElementById('filterCentro')?.value || '';
+  const selectedPrograma = document.getElementById('filterPrograma')?.value || '';
+  const selectedNivel = document.getElementById('filterNivel')?.value || '';
+  const selectedModalidad = document.getElementById('filterModalidad')?.value || '';
+  const selectedJornada = document.getElementById('filterJornada')?.value || '';
+  const selectedEstado = document.getElementById('filterEstado')?.value || '';
+  const selectedEstrategia = document.getElementById('filterEstrategia')?.value || '';
+  const selectedMunicipio = document.getElementById('filterMunicipio')?.value || '';
   let subset = allData;
   if (selectedRegional) subset = subset.filter(r => r.NOMBRE_REGIONAL === selectedRegional);
   if (selectedCentro) subset = subset.filter(r => r.NOMBRE_CENTRO === selectedCentro);
+  if (selectedPrograma) subset = subset.filter(r => r.PROGRAMA_FORMACION === selectedPrograma);
+  if (selectedNivel) subset = subset.filter(r => r.NIVEL_FORMACION === selectedNivel);
+  if (selectedModalidad) subset = subset.filter(r => r.MODALIDAD_FORMACION === selectedModalidad);
+  if (selectedJornada) subset = subset.filter(r => r.JORNADA === selectedJornada);
+  if (selectedEstado) subset = subset.filter(r => r.ESTADO_FICHA === selectedEstado);
+  if (selectedEstrategia) subset = subset.filter(r => r.CODIGO_ESTRATEGIA === selectedEstrategia);
+  if (selectedMunicipio) subset = subset.filter(r => r.MUNICIPIO === selectedMunicipio);
   const centers = [...new Set(subset.map(r => r.NOMBRE_CENTRO).filter(Boolean))].sort();
   const programs = [...new Set(subset.map(r => r.PROGRAMA_FORMACION).filter(Boolean))].sort();
+  const niveles = [...new Set(subset.map(r => r.NIVEL_FORMACION).filter(Boolean))].sort();
+  const modalidades = [...new Set(subset.map(r => r.MODALIDAD_FORMACION).filter(Boolean))].sort();
+  const jornadas = [...new Set(subset.map(r => r.JORNADA).filter(Boolean))].sort();
+  const estados = [...new Set(subset.map(r => r.ESTADO_FICHA).filter(Boolean))].sort();
+  const estrategias = [...new Set(subset.map(r => r.CODIGO_ESTRATEGIA).filter(Boolean))].sort();
+  const municipios = [...new Set(subset.map(r => r.MUNICIPIO).filter(Boolean))].sort();
   setSelectOptions('filterCentro', centers);
   setSelectOptions('filterPrograma', programs);
+  setSelectOptions('filterNivel', niveles);
+  setSelectOptions('filterModalidad', modalidades);
+  setSelectOptions('filterJornada', jornadas);
+  setSelectOptions('filterEstado', estados);
+  setSelectOptions('filterEstrategia', estrategias);
+  setSelectOptions('filterMunicipio', municipios);
 }
 document.getElementById('filterRegional')?.addEventListener('change', () => {
   updateDependentFilters();
 });
 document.getElementById('filterCentro')?.addEventListener('change', () => {
   updateDependentFilters();
+});
+['filterPrograma','filterNivel','filterModalidad','filterJornada','filterEstado','filterEstrategia','filterMunicipio'].forEach(id => {
+  document.getElementById(id)?.addEventListener('change', () => {
+    updateDependentFilters();
+  });
 });
