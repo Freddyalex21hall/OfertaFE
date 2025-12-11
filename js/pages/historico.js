@@ -5,6 +5,8 @@ let allData = [];
 let filteredData = [];
 let currentPage = 1;
 const PAGE_SIZE = 50;
+let currentPageActive = 1;
+let currentPageClosed = 1;
 
 // ===== CARGAR DATOS DESDE SESSIONSTORAGE AL INICIO =====
 function loadDataFromMemory() {
@@ -176,6 +178,7 @@ function populateFilters() {
       select.appendChild(option);
     });
   });
+  updateDependentFilters();
 }
 
 // ===== RENDERIZAR TABLA PRINCIPAL =====
@@ -277,18 +280,19 @@ function getEstado(estado) {
 // ===== RENDERIZAR TABLA DE OFERTAS ACTIVAS =====
 function renderActiveTable() {
   activeTableBody.innerHTML = '';
-  
-  const activeOffers = filteredData.filter(row => {
-    const estado = row.ESTADO_FICHA?.toLowerCase() || '';
-    return estado.includes('ejecucion') || estado.includes('activa');
-  });
+  const activeOffers = getActiveOffers();
 
   if (activeOffers.length === 0) {
     activeTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay ofertas activas</td></tr>';
+    renderActivePagination(0);
     return;
   }
 
-  activeOffers.forEach(row => {
+  const start = (currentPageActive - 1) * PAGE_SIZE;
+  const end = start + PAGE_SIZE;
+  const pageData = activeOffers.slice(start, end);
+
+  pageData.forEach(row => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${row.NOMBRE_CENTRO || ''}</td>
@@ -299,23 +303,25 @@ function renderActiveTable() {
     `;
     activeTableBody.appendChild(tr);
   });
+  renderActivePagination(activeOffers.length);
 }
 
 // ===== RENDERIZAR TABLA DE OFERTAS CERRADAS =====
 function renderClosedTable() {
   closedTableBody.innerHTML = '';
-  
-  const closedOffers = filteredData.filter(row => {
-    const estado = row.ESTADO_FICHA?.toLowerCase() || '';
-    return estado.includes('cerrada') || estado.includes('terminada');
-  });
+  const closedOffers = getClosedOffers();
 
   if (closedOffers.length === 0) {
     closedTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay ofertas cerradas</td></tr>';
+    renderClosedPagination(0);
     return;
   }
 
-  closedOffers.forEach(row => {
+  const start = (currentPageClosed - 1) * PAGE_SIZE;
+  const end = start + PAGE_SIZE;
+  const pageData = closedOffers.slice(start, end);
+
+  pageData.forEach(row => {
     const matriculados = parseInt(row.MATRICULADOS) || 0;
     const certificados = parseInt(row.CERTIFICADOS) || 0;
     const tasa = matriculados > 0 ? ((certificados / matriculados) * 100).toFixed(1) : 0;
@@ -330,6 +336,7 @@ function renderClosedTable() {
     `;
     closedTableBody.appendChild(tr);
   });
+  renderClosedPagination(closedOffers.length);
 }
 
 // ===== ACTUALIZAR ESTADÍSTICAS =====
@@ -366,6 +373,9 @@ document.getElementById('applyFilters').addEventListener('click', () => {
   });
 
   currentPage = 1;
+  currentPage = 1;
+  currentPageActive = 1;
+  currentPageClosed = 1;
   renderTable();
   updateStats();
 });
@@ -376,8 +386,12 @@ document.getElementById('clearFilters').addEventListener('click', () => {
   document.querySelectorAll('.filter-group select').forEach(select => select.value = '');
   filteredData = [...allData];
   currentPage = 1;
+  currentPage = 1;
+  currentPageActive = 1;
+  currentPageClosed = 1;
   renderTable();
   updateStats();
+  populateFilters();
 });
 
 // ===== EXPORTAR A EXCEL =====
@@ -409,60 +423,71 @@ document.getElementById('btnStats').addEventListener('click', () => {
   const stats = calculateStats();
   
   statsContent.innerHTML = `
-    <div class="row">
-      <div class="col-md-4">
-        <div class="card text-center mb-3">
-          <div class="card-body">
-            <h5 class="card-title">Total Matriculados</h5>
-            <h2 class="text-primary">${stats.totalMatriculados}</h2>
+    <div class="container">
+      <div class="row justify-content-center mb-3">
+        <div class="col-md-8 text-center">
+          <h3 class="mb-3">Estadísticas del Histórico</h3>
+          <p class="text-muted">Resumen general y comparación entre centros</p>
+        </div>
+      </div>
+      <div class="row justify-content-center">
+        <div class="col-md-3">
+          <div class="card text-center mb-3">
+            <div class="card-body">
+              <h5 class="card-title">Total Matriculados</h5>
+              <h1 class="text-primary">${stats.totalMatriculados}</h1>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card text-center mb-3">
+            <div class="card-body">
+              <h5 class="card-title">Total Certificados</h5>
+              <h1 class="text-success">${stats.totalCertificados}</h1>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card text-center mb-3">
+            <div class="card-body">
+              <h5 class="card-title">Tasa de Éxito</h5>
+              <h1 class="text-info">${stats.tasaExito}%</h1>
+            </div>
           </div>
         </div>
       </div>
-      <div class="col-md-4">
-        <div class="card text-center mb-3">
-          <div class="card-body">
-            <h5 class="card-title">Total Certificados</h5>
-            <h2 class="text-success">${stats.totalCertificados}</h2>
+      <div class="row justify-content-center">
+        <div class="col-md-10">
+          <div class="card">
+            <div class="card-header bg-primary text-white">
+              <strong>Resumen por Centro</strong>
+            </div>
+            <div class="card-body">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Centro</th>
+                    <th>Ofertas</th>
+                    <th>Matriculados</th>
+                    <th>Certificados</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${stats.porCentro.map(c => `
+                    <tr>
+                      <td>${c.centro}</td>
+                      <td>${c.ofertas}</td>
+                      <td>${c.matriculados}</td>
+                      <td>${c.certificados}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+              <div class="mt-4 text-center">
+                <div id="chartCentroFormacion" class="d-inline-block"></div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="card text-center mb-3">
-          <div class="card-body">
-            <h5 class="card-title">Tasa de Éxito</h5>
-            <h2 class="text-info">${stats.tasaExito}%</h2>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-header bg-primary text-white">
-        <strong>Resumen por Centro</strong>
-      </div>
-      <div class="card-body">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th>Centro</th>
-              <th>Ofertas</th>
-              <th>Matriculados</th>
-              <th>Certificados</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${stats.porCentro.map(c => `
-              <tr>
-                <td>${c.centro}</td>
-                <td>${c.ofertas}</td>
-                <td>${c.matriculados}</td>
-                <td>${c.certificados}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        <div class="mt-3">
-          <h6 class="mb-2">Top 5 centros por aprendices matriculados</h6>
-          <div id="chartCentroFormacion"></div>
         </div>
       </div>
     </div>
@@ -503,6 +528,8 @@ document.getElementById('loadSampleData').addEventListener('click', () => {
   saveDataToMemory();
   populateFilters();
   currentPage = 1;
+  currentPageActive = 1;
+  currentPageClosed = 1;
   renderTable();
   updateStats();
   
@@ -772,6 +799,8 @@ async function loadFromAPI(getter, ...args){
     saveDataToMemory();
     populateFilters();
     currentPage = 1;
+    currentPageActive = 1;
+    currentPageClosed = 1;
     renderTable();
     updateStats();
   }catch(err){
@@ -809,10 +838,12 @@ function imprimirGraficaCentros(data){
   const entries = Object.entries(totals).sort((a,b) => b[1]-a[1]).slice(0,5);
   const labels = entries.map(e => e[0]);
   const series = entries.map(e => e[1]);
+  const uniqueCentersCount = Object.keys(totals).length || 0;
   const options = {
     series: series.length ? series : [10, 8, 6, 4, 2],
-    chart: { width: 420, type: 'pie' },
+    chart: { width: 640, type: 'pie' },
     labels: labels.length ? labels : ['Centro A','Centro B','Centro C','Centro D','Centro E'],
+    title: { text: `Top ${uniqueCentersCount} centros identificados`, align: 'center' },
     responsive: [{ breakpoint: 480, options: { chart: { width: 260 }, legend: { position: 'bottom' } } }]
   };
   const el = document.querySelector('#chartCentroFormacion');
@@ -821,6 +852,67 @@ function imprimirGraficaCentros(data){
   const chart = new ApexCharts(el, options);
   chart.render();
 }
+
+function getActiveOffers(){
+  return filteredData.filter(row => {
+    const estado = row.ESTADO_FICHA?.toLowerCase() || '';
+    return estado.includes('ejecucion') || estado.includes('activa');
+  });
+}
+function getClosedOffers(){
+  return filteredData.filter(row => {
+    const estado = row.ESTADO_FICHA?.toLowerCase() || '';
+    return estado.includes('cerrada') || estado.includes('terminada');
+  });
+}
+
+function renderActivePagination(total){
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (currentPageActive > totalPages) currentPageActive = totalPages;
+  const info = document.getElementById('pageInfoActive');
+  if (info) info.textContent = `Página ${currentPageActive} de ${totalPages}`;
+  const prev = document.getElementById('btnPrevPageActive');
+  const next = document.getElementById('btnNextPageActive');
+  if (prev) prev.disabled = currentPageActive <= 1;
+  if (next) next.disabled = currentPageActive >= totalPages;
+}
+function renderClosedPagination(total){
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (currentPageClosed > totalPages) currentPageClosed = totalPages;
+  const info = document.getElementById('pageInfoClosed');
+  if (info) info.textContent = `Página ${currentPageClosed} de ${totalPages}`;
+  const prev = document.getElementById('btnPrevPageClosed');
+  const next = document.getElementById('btnNextPageClosed');
+  if (prev) prev.disabled = currentPageClosed <= 1;
+  if (next) next.disabled = currentPageClosed >= totalPages;
+}
+
+document.getElementById('btnPrevPageActive')?.addEventListener('click', () => {
+  if (currentPageActive > 1){
+    currentPageActive--;
+    renderActiveTable();
+  }
+});
+document.getElementById('btnNextPageActive')?.addEventListener('click', () => {
+  const totalPages = Math.max(1, Math.ceil(getActiveOffers().length / PAGE_SIZE));
+  if (currentPageActive < totalPages){
+    currentPageActive++;
+    renderActiveTable();
+  }
+});
+document.getElementById('btnPrevPageClosed')?.addEventListener('click', () => {
+  if (currentPageClosed > 1){
+    currentPageClosed--;
+    renderClosedTable();
+  }
+});
+document.getElementById('btnNextPageClosed')?.addEventListener('click', () => {
+  const totalPages = Math.max(1, Math.ceil(getClosedOffers().length / PAGE_SIZE));
+  if (currentPageClosed < totalPages){
+    currentPageClosed++;
+    renderClosedTable();
+  }
+});
 
 function renderPagination(){
   const total = filteredData.length;
@@ -868,4 +960,35 @@ document.getElementById('inputPageNumber')?.addEventListener('keydown', (e) => {
     currentPage = v;
     renderTable();
   }
+});
+
+function setSelectOptions(selectId, values, currentValue){
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  const prev = currentValue ?? select.value;
+  select.innerHTML = '<option value="">Todos</option>';
+  values.forEach(v => {
+    const option = document.createElement('option');
+    option.value = v;
+    option.textContent = v;
+    select.appendChild(option);
+  });
+  if (prev && values.includes(prev)) select.value = prev; else select.value = '';
+}
+function updateDependentFilters(){
+  const selectedRegional = document.getElementById('filterRegional')?.value || '';
+  const selectedCentro = document.getElementById('filterCentro')?.value || '';
+  let subset = allData;
+  if (selectedRegional) subset = subset.filter(r => r.NOMBRE_REGIONAL === selectedRegional);
+  if (selectedCentro) subset = subset.filter(r => r.NOMBRE_CENTRO === selectedCentro);
+  const centers = [...new Set(subset.map(r => r.NOMBRE_CENTRO).filter(Boolean))].sort();
+  const programs = [...new Set(subset.map(r => r.PROGRAMA_FORMACION).filter(Boolean))].sort();
+  setSelectOptions('filterCentro', centers);
+  setSelectOptions('filterPrograma', programs);
+}
+document.getElementById('filterRegional')?.addEventListener('change', () => {
+  updateDependentFilters();
+});
+document.getElementById('filterCentro')?.addEventListener('change', () => {
+  updateDependentFilters();
 });
