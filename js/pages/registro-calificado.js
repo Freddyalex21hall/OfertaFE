@@ -1,8 +1,10 @@
-
+import { registroCalificadoService } from '../api/panel.service.js';
 
 // ===== VARIABLES GLOBALES =====
 let allData = [];
 let filteredData = [];
+const PAGE_SIZE = 50;
+let currentPage = 1;
 
 // Leer encabezados directamente del HTML para que siempre coincidan
 function getHEADERS() {
@@ -80,9 +82,16 @@ const searchAll = document.getElementById('searchAll');
 const tableBody = document.getElementById('tableBody');
 const totalRecords = document.getElementById('totalRecords');
 const filteredRecords = document.getElementById('filteredRecords');
-const selDepartamento = document.getElementById('filterDepartamento');
-const selMunicipio = document.getElementById('filterMunicipio');
-const selSede = document.getElementById('filterSede');
+const selTipo = document.getElementById('filterTipo');
+const selRadicado = document.getElementById('filterRadicado');
+const inputResolucion = document.getElementById('filterResolucion');
+const inputSnies = document.getElementById('filterSnies');
+const inputVencimiento = document.getElementById('filterVencimiento');
+const inputPrograma = document.getElementById('filterPrograma');
+const selModalidad = document.getElementById('filterModalidad');
+const paginationInfo = document.getElementById('paginationInfo');
+const prevPageBtn = document.getElementById('prevPage');
+const nextPageBtn = document.getElementById('nextPage');
 
 // ===== MANEJO DE CARGA DE ARCHIVOS =====
 uploadZone.addEventListener('click', () => fileInput.click());
@@ -165,6 +174,7 @@ function processFile(file) {
 
                     // Agregar datos evitando duplicados
                     const result = addDataWithoutDuplicates(transformed, HEADERS);
+            currentPage = 1;
             saveDataToMemory();
                           populateFilters();
             renderTable();
@@ -210,10 +220,127 @@ function addDataWithoutDuplicates(newData, HEADERS = getHEADERS()) {
     };
 }
 
+// ===== MAPEAR RESPUESTA DEL BACKEND A LAS COLUMNAS DE LA TABLA =====
+function mapApiDataToTable(apiRows = []) {
+    const HEADERS = getHEADERS();
+    const canon = (h) => canonicalize(normalize(h));
+
+    return apiRows.map(row => {
+        const source = {
+            TIPO_TRAMITE: row.tipo_tramite ?? row.tramite ?? '',
+            FECHA_RADICADO: normalizeDate(row.fecha_radicado ?? ''),
+            NUMERO_RESOLUCION: row.numero_resolucion ?? row.num_resolucion ?? '',
+            FECHA_RESOLUCION: normalizeDate(row.fecha_resolucion ?? ''),
+            SNIES: row.snies ?? row.codigo_snies ?? row.cod_programa ?? '',
+            FECHA_VENCIMIENTO: normalizeDate(row.fecha_vencimiento ?? ''),
+            CODIGO_PROGRAMA: row.codigo_programa ?? row.cod_programa ?? '',
+            MODALIDAD: row.modalidad ?? row.modalidad_formacion ?? ''
+        };
+
+        const mapped = {};
+        HEADERS.forEach(header => {
+            const key = canon(header);
+            switch (key) {
+                case canon('TIPO DE TRAMITE'):
+                    mapped[header] = source.TIPO_TRAMITE;
+                    break;
+                case canon('FECHA RADICADO'):
+                    mapped[header] = source.FECHA_RADICADO;
+                    break;
+                case canon('NUMERO DE RESOLUCION'):
+                    mapped[header] = source.NUMERO_RESOLUCION;
+                    break;
+                case canon('FECHA RESOLUCION'):
+                    mapped[header] = source.FECHA_RESOLUCION;
+                    break;
+                case canon('RESUELVE'):
+                    mapped[header] = source.RESUELVE;
+                    break;
+                case canon('SNIES'):
+                    mapped[header] = source.SNIES;
+                    break;
+                case canon('FECHA DE VENCIMIENTO'):
+                    mapped[header] = source.FECHA_VENCIMIENTO;
+                    break;
+                case canon('VIGENCIA RC'):
+                    mapped[header] = source.VIGENCIA_RC;
+                    break;
+                case canon('CODIGO PROGRAMA'):
+                    mapped[header] = source.CODIGO_PROGRAMA;
+                    break;
+                case canon('NOMBRE DEL PROGRAMA'):
+                    mapped[header] = source.NOMBRE_PROGRAMA;
+                    break;
+                case canon('NIVEL DE FORMACION'):
+                    mapped[header] = source.NIVEL_FORMACION;
+                    break;
+                case canon('RED DE CONOCIMIENTO'):
+                    mapped[header] = source.RED_CONOCIMIENTO;
+                    break;
+                case canon('MODALIDAD'):
+                    mapped[header] = source.MODALIDAD;
+                    break;
+                case canon('CENTRO DE FORMACION'):
+                    mapped[header] = source.CENTRO_FORMACION;
+                    break;
+                case canon('NOMBRE SEDE'):
+                    mapped[header] = source.NOMBRE_SEDE;
+                    break;
+                case canon('TIPO SEDE'):
+                    mapped[header] = source.TIPO_SEDE;
+                    break;
+                case canon('MUNICIPIO'):
+                    mapped[header] = source.MUNICIPIO;
+                    break;
+                case canon('LUGAR DE DESARROLLO'):
+                    mapped[header] = source.LUGAR_DESARROLLO;
+                    break;
+                case canon('REGIONAL'):
+                    mapped[header] = source.REGIONAL;
+                    break;
+                case canon('NOMBRE REGIONAL'):
+                    mapped[header] = source.NOMBRE_REGIONAL;
+                    break;
+                case canon('CLASIFICACION TRAMITE'):
+                    mapped[header] = source.CLASIFICACION_TRAMITE;
+                    break;
+                default:
+                    mapped[header] = row[header] ?? '';
+            }
+        });
+        return mapped;
+    });
+}
+
+// ===== Paginación =====
+function getTotalPages() {
+    return Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
+}
+
+function ensureValidPage() {
+    const totalPages = getTotalPages();
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+}
+
+function renderPagination() {
+    if (!paginationInfo || !prevPageBtn || !nextPageBtn) return;
+    ensureValidPage();
+    const total = filteredData.length;
+    const totalPages = getTotalPages();
+    const start = total === 0 ? 0 : ((currentPage - 1) * PAGE_SIZE) + 1;
+    const end = total === 0 ? 0 : Math.min(currentPage * PAGE_SIZE, total);
+    paginationInfo.textContent = `Mostrando ${start}-${end} de ${total}`;
+    prevPageBtn.disabled = currentPage <= 1;
+    nextPageBtn.disabled = total === 0 || currentPage >= totalPages;
+}
+
 // ===== RENDERIZAR TABLA PRINCIPAL =====
 function renderTable() {
     const HEADERS = getHEADERS();
     tableBody.innerHTML = '';
+    ensureValidPage();
+
     if (filteredData.length === 0) {
         tableBody.innerHTML = `
             <tr>
@@ -222,13 +349,18 @@ function renderTable() {
                     <p>No se encontraron resultados</p>
                 </td>
             </tr>`;
+        renderPagination();
         return;
     }
-    filteredData.forEach(row => {
+
+    const startIdx = (currentPage - 1) * PAGE_SIZE;
+    const pageRows = filteredData.slice(startIdx, startIdx + PAGE_SIZE);
+    pageRows.forEach(row => {
         const tr = document.createElement('tr');
         tr.innerHTML = HEADERS.map(h => `<td>${row[h] || ''}</td>`).join('');
         tableBody.appendChild(tr);
     });
+    renderPagination();
 }
 
 // ===== Normalización de fechas =====
@@ -301,6 +433,7 @@ function applyVigenciaFilter(mode) {
     const in30 = new Date(today.getFullYear(), today.getMonth(), today.getDate()+30);
     const HEADERS = getHEADERS();
     const vencCol = HEADERS.find(h => normalize(h) === normalize('Fecha de vencimiento')) || 'Fecha de vencimiento';
+    currentPage = 1;
     filteredData = allData.filter(row => {
         const dt = parseYMD(row[vencCol]);
         if (!dt) return false;
@@ -317,6 +450,26 @@ if (btnVencidos) btnVencidos.addEventListener('click', () => applyVigenciaFilter
 if (btnPorVencer) btnPorVencer.addEventListener('click', () => applyVigenciaFilter('por-vencer'));
 if (btnVigentes) btnVigentes.addEventListener('click', () => applyVigenciaFilter('vigentes'));
 
+// ===== Paginación eventos =====
+if (prevPageBtn) {
+    prevPageBtn.addEventListener('click', () => {
+        if (currentPage > 1) {
+            currentPage -= 1;
+            renderTable();
+        }
+    });
+}
+
+if (nextPageBtn) {
+    nextPageBtn.addEventListener('click', () => {
+        const totalPages = getTotalPages();
+        if (currentPage < totalPages) {
+            currentPage += 1;
+            renderTable();
+        }
+    });
+}
+
 // ===== ACTUALIZAR ESTADÍSTICAS =====
 function updateStats() {
     totalRecords.textContent = allData.length;
@@ -327,15 +480,31 @@ function updateStats() {
 document.getElementById('applyFilters').addEventListener('click', () => {
     const HEADERS = getHEADERS();
     const searchAllValue = searchAll.value.toLowerCase();
-    const dep = selDepartamento?.value || '';
-    const mun = selMunicipio?.value || '';
-    const sede = selSede?.value || '';
+    const tipo = selTipo?.value || '';
+    const radicado = selRadicado?.value || '';
+    const resolucion = inputResolucion?.value?.trim() || '';
+    const snies = inputSnies?.value?.trim() || '';
+    const vencimiento = inputVencimiento?.value || '';
+    const programa = inputPrograma?.value?.trim() || '';
+    const modalidad = selModalidad?.value || '';
+    currentPage = 1;
     filteredData = allData.filter(row => {
         const matchesSearch = !searchAllValue || HEADERS.some(h => String(row[h] || '').toLowerCase().includes(searchAllValue));
-        const matchesDep = !dep || String(row['NOMBRE REGIONAL'] || '').toLowerCase() === dep.toLowerCase();
-        const matchesMun = !mun || String(row['LUGAR DE DESARROLLO'] || '').toLowerCase() === mun.toLowerCase();
-        const matchesSede = !sede || String(row['NOMBRE SEDE'] || '').toLowerCase() === sede.toLowerCase();
-        return matchesSearch && matchesDep && matchesMun && matchesSede;
+        const matchesTipo = !tipo || String(row['TIPO DE TRAMITE'] || '').toLowerCase() === tipo.toLowerCase();
+        const matchesRadicado = !radicado || String(row['FECHA RADICADO'] || '') === radicado;
+        const matchesResolucion = !resolucion || String(row['NUMERO DE RESOLUCION'] || '').toLowerCase().includes(resolucion.toLowerCase());
+        const matchesSnies = !snies || String(row['SNIES'] || '').toLowerCase().includes(snies.toLowerCase());
+        const matchesVenc = (() => {
+            if (!vencimiento) return true;
+            const cutoff = new Date(vencimiento);
+            cutoff.setHours(0,0,0,0);
+            const rowDate = parseYMD(row['FECHA DE VENCIMIENTO']);
+            if (!rowDate) return false;
+            return rowDate < cutoff; // solo anteriores a la fecha elegida
+        })();
+        const matchesPrograma = !programa || String(row['CODIGO PROGRAMA'] || '').toLowerCase().includes(programa.toLowerCase());
+        const matchesModalidad = !modalidad || String(row['MODALIDAD'] || '').toLowerCase() === modalidad.toLowerCase();
+        return matchesSearch && matchesTipo && matchesRadicado && matchesResolucion && matchesSnies && matchesVenc && matchesPrograma && matchesModalidad;
     });
     renderTable();
     updateStats();
@@ -344,9 +513,14 @@ document.getElementById('applyFilters').addEventListener('click', () => {
 // ===== LIMPIAR FILTROS =====
 document.getElementById('clearFilters').addEventListener('click', () => {
     searchAll.value = '';
-    if (selDepartamento) selDepartamento.value = '';
-    if (selMunicipio) selMunicipio.value = '';
-    if (selSede) selSede.value = '';
+    if (selTipo) selTipo.value = '';
+    if (selRadicado) selRadicado.value = '';
+    if (inputResolucion) inputResolucion.value = '';
+    if (inputSnies) inputSnies.value = '';
+    if (inputVencimiento) inputVencimiento.value = '';
+    if (inputPrograma) inputPrograma.value = '';
+    if (selModalidad) selModalidad.value = '';
+    currentPage = 1;
     filteredData = [...allData];
     renderTable();
     updateStats();
@@ -372,6 +546,7 @@ if (clearAllBtn) {
         if (confirm('¿Borrar TODOS los registros? Esta acción no se puede deshacer.')) {
             allData = [];
             filteredData = [];
+            currentPage = 1;
             localStorage.removeItem('registrosCalificados');
             localStorage.removeItem('registrosCalificadosLastUpdate');
             renderTable();
@@ -381,8 +556,45 @@ if (clearAllBtn) {
     });
 }
 
+// ===== Extraer payload de distintas formas de respuesta =====
+function extractApiArray(payload) {
+    const candidates = [
+        payload,
+        payload?.data,
+        payload?.data?.data,
+        payload?.data?.items,
+        payload?.items,
+        payload?.results,
+        payload?.content,
+        payload?.rows,
+        payload?.records,
+    ];
+    return candidates.find(Array.isArray) || [];
+}
+
+// ===== CARGAR DESDE BACKEND =====
+async function fetchRegistrosCalificados() {
+    try {
+        const res = await registroCalificadoService.getAll();
+        const data = extractApiArray(res);
+        if (!Array.isArray(data) || data.length === 0) {
+            console.warn('Respuesta sin registros o con formato no esperado', res);
+            return;
+        }
+        allData = mapApiDataToTable(data);
+        filteredData = [...allData];
+        currentPage = 1;
+        saveDataToMemory();
+        populateFilters();
+        renderTable();
+        updateStats();
+    } catch (error) {
+        console.error('Error cargando registros calificados desde API:', error);
+    }
+}
+
 // ===== RENDER INICIAL =====
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // Migrar posibles registros antiguos guardados como arrays a objetos con headers actuales
     const HEADERS = getHEADERS();
     if (Array.isArray(allData) && allData.length && Array.isArray(allData[0])) {
@@ -396,30 +608,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     renderTable();
     updateStats();
+    await fetchRegistrosCalificados();
 });
 
 // ===== Poblar filtros de manera dinámica =====
 function populateFilters() {
     try {
-        const deps = new Set();
-        const muns = new Set();
-        const sedes = new Set();
+        const tipos = new Set();
+        const radicados = new Set();
+        const modalidades = new Set(['PRESENCIAL', 'VIRTUAL']);
+
         allData.forEach(row => {
-            const dep = (row['NOMBRE REGIONAL'] || '').trim();
-            const mun = (row['LUGAR DE DESARROLLO'] || '').trim();
-            const sede = (row['NOMBRE SEDE'] || '').trim();
-            if (dep) deps.add(dep);
-            if (mun) muns.add(mun);
-            if (sede) sedes.add(sede);
+            if (row['TIPO DE TRAMITE']) tipos.add(row['TIPO DE TRAMITE']);
+            if (row['FECHA RADICADO']) radicados.add(row['FECHA RADICADO']);
+            if (row['MODALIDAD']) modalidades.add(String(row['MODALIDAD']).toUpperCase().trim());
         });
+
         const fill = (selectEl, values) => {
             if (!selectEl) return;
             const sorted = Array.from(values).sort((a,b) => a.localeCompare(b));
             selectEl.innerHTML = '<option value="">Todos</option>' + sorted.map(v => `<option value="${v}">${v}</option>`).join('');
         };
-        fill(selDepartamento, deps);
-        fill(selMunicipio, muns);
-        fill(selSede, sedes);
+
+        fill(selTipo, tipos);
+        fill(selRadicado, radicados);
+        fill(selModalidad, modalidades);
     } catch (e) {
         console.error('Error populating filters', e);
     }
