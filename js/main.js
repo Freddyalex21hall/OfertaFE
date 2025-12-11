@@ -34,6 +34,12 @@ try {
         .then(usersModule => usersModule.Init());  // llama la función modulo en users.js
     }
 
+    // cuando se carga la página catalogo
+    if (page === 'catalogo') {
+    import('./pages/catalogo.js')
+        .then(catalogoModule => catalogoModule.Init());  
+    }
+
     // cuando se carga la página panel
     if (page === 'panel') {
     import('./pages/panel.js')
