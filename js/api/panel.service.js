@@ -32,3 +32,11 @@ export const panelService = {
     porNumCertificados: (num_aprendices_certificados) => request(`/historico/obtener-por-num_aprendices_certificados/${num_aprendices_certificados}`),
     porNumTrasladados: (num_aprendices_trasladados) => request(`/historico/obtener-por-num_aprendices_trasladados/${num_aprendices_trasladados}`),
 };
+
+// Servicio para Registro Calificado (mismo archivo para centralizar llamadas)
+export const registroCalificadoService = {
+    getAll: () => request('/registro_calificado/registro_calificado/listar'),
+};
+
+
+

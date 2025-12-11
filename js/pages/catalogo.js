@@ -1,265 +1,294 @@
-// catalogo.js (versión corregida para filtros robustos)
-
-// ===== UTILIDADES DE NORMALIZACIÓN =====
-function normalizeText(s) {
-  if (s === null || s === undefined) return '';
-  return String(s)
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quitar acentos
-    .replace(/\s+/g, ' ') // compactar espacios
-    .replace(/[_\-\.]/g, ' ') // reemplazar guiones/guiones bajos/puntos por espacio
-    .trim()
-    .toUpperCase();
-}
+import { catalogoService } from '../api/catalogo.service.js';
 
 // ===== VARIABLES GLOBALES =====
-let allData = [];
-let filteredData = [];
-let fileHeaderMap = new Map(); // mapa normalizado -> original del archivo
+let selectedFile = null;
 
-// ===== ELEMENTOS =====
-const uploadZone = document.getElementById('uploadZone');
-const fileInput = document.getElementById('inputExcel');
-const searchAll = document.getElementById('searchAll');
-const tableBody = document.getElementById('tableBody');
-const totalRecords = document.getElementById('totalRecords');
-const filteredRecords = document.getElementById('filteredRecords');
-const selNivel = document.getElementById('filterNivel');
-const selModalidad = document.getElementById('filterModalidad');
-const selRed = document.getElementById('filterRed');
+// ===== ELEMENTOS DEL DOM =====
+const fileInput = document.getElementById('fileInput');
+const filePreview = document.getElementById('filePreview');
+const fileName = document.getElementById('fileName');
+const fileSize = document.getElementById('fileSize');
+const dropZone = document.getElementById('dropZone');
+const dropZoneContent = document.getElementById('dropZoneContent');
+const btnSelectFile = document.getElementById('btnSelectFile');
+const btnRemoveFile = document.getElementById('btnRemoveFile');
+const btnUploadFile = document.getElementById('btnUploadFile');
 
-// ===== HEADERS VISIBLES (de la tabla) =====
-function getHEADERS() {
-  return Array.from(document.querySelectorAll('#tablaCatalogo thead th')).map(th => th.textContent.trim());
-}
-
-// ===== LOCALSTORAGE =====
-function saveData() {
-  localStorage.setItem('catalogoProgramas', JSON.stringify(allData));
-}
-function loadData() {
-  const d = localStorage.getItem('catalogoProgramas');
-  return d ? JSON.parse(d) : [];
-}
-
-// ===== EVENTOS DE CARGA =====
-uploadZone.addEventListener('click', () => fileInput.click());
-uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.style.background = '#e9ecef'; });
-uploadZone.addEventListener('dragleave', () => { uploadZone.style.background = '#f8f9fa'; });
-uploadZone.addEventListener('drop', e => {
-  e.preventDefault();
-  const file = e.dataTransfer.files && e.dataTransfer.files[0];
-  if (file) processFile(file);
-});
-fileInput.addEventListener('change', e => {
-  const file = e.target.files && e.target.files[0];
-  if (file) processFile(file);
-});
-
-// ===== PROCESAR ARCHIVO (mapeo robusto de columnas) =====
-function processFile(file) {
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-      if (!json || !json.length) return alert('Archivo vacío o no válido');
-
-      // construir mapa normalizado de encabezados del archivo
-      fileHeaderMap = new Map();
-      const sampleRow = json[0];
-      Object.keys(sampleRow).forEach(orig => {
-        fileHeaderMap.set(normalizeText(orig), orig);
-      });
-
-      // mapear cada fila a los HEADERS visibles
-      const HEADERS = getHEADERS();
-      const mappedRows = json.map(row => {
-        const out = {};
-        HEADERS.forEach(h => {
-          const normH = normalizeText(h);
-          // Buscar coincidencia exacta en fileHeaderMap
-          let sourceKey = fileHeaderMap.get(normH);
-          if (!sourceKey) {
-            // intentar búsqueda por inclusión (archivo contiene la palabra)
-            for (let [normFile, orig] of fileHeaderMap.entries()) {
-              if (normFile.includes(normH) || normH.includes(normFile)) {
-                sourceKey = orig;
-                break;
-              }
-            }
-          }
-          // fallback: buscar por nombres comunes (ej. PRF_CODIGO puede venir como PRF CODIGO)
-          if (!sourceKey) {
-            // si no se encuentra, buscar por coincidencia parcial por token
-            for (let [normFile, orig] of fileHeaderMap.entries()) {
-              const tokensFile = normFile.split(' ');
-              const tokensH = normH.split(' ');
-              if (tokensH.some(t => tokensFile.includes(t))) {
-                sourceKey = orig;
-                break;
-              }
-            }
-          }
-          out[h] = sourceKey ? row[sourceKey] : '';
-        });
-        return out;
-      });
-
-      // detectar clave para evitar duplicados (PRF_CODIGO u otros)
-      const HEADERS_UP = HEADERS.map(h => normalizeText(h));
-      let codigoKey = HEADERS.find(h => normalizeText(h).includes('PRF') && normalizeText(h).includes('COD')) 
-                   || HEADERS.find(h => normalizeText(h).includes('CODIGO')) 
-                   || HEADERS[0]; // fallback al primero
-      // ahora mergear sin duplicados usando el valor de codigoKey
-      allData = mergeWithoutDuplicates(allData, mappedRows, codigoKey);
-      filteredData = [...allData];
-      saveData();
-      renderTable();
-      populateFilters();
-      updateStats();
-      showSuccessModal(mappedRows.length, allData.length);
-    } catch (err) {
-      console.error('Error procesando archivo:', err);
-      alert('Error al procesar el archivo. Revisa el formato.');
-    }
-  };
-  // leer como array buffer para XLSX
-  reader.readAsArrayBuffer(file);
-}
-
-// ===== MERGE SIN DUPLICADOS (usa clave detectada) =====
-function mergeWithoutDuplicates(existing, incoming, codigoKey) {
-  try {
-    const existCodes = new Set(existing.map(r => normalizeText(r[codigoKey] || '')));
-    const uniques = incoming.filter(r => {
-      const code = normalizeText(r[codigoKey] || '');
-      return code && !existCodes.has(code);
-    });
-    return [...existing, ...uniques];
-  } catch (e) {
-    console.error('mergeWithoutDuplicates error', e);
-    return [...existing, ...incoming];
+// ===== FUNCIÓN PARA VALIDAR ARCHIVO =====
+function validateFile(file) {
+  const validTypes = [
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+    'application/vnd.ms-excel' // .xls
+  ];
+  
+  if (!validTypes.includes(file.type)) {
+    alert('Por favor selecciona un archivo Excel válido (.xlsx o .xls)');
+    return false;
   }
+  
+  // Validar tamaño máximo (10MB)
+  const maxSize = 10 * 1024 * 1024;
+  if (file.size > maxSize) {
+    alert('El archivo es demasiado grande. Tamaño máximo: 10MB');
+    return false;
+  }
+  
+  return true;
 }
 
-// ===== RENDER TABLA =====
-function renderTable() {
-  const HEADERS = getHEADERS();
-  tableBody.innerHTML = '';
-  if (!filteredData || !filteredData.length) {
-    tableBody.innerHTML = `<tr><td colspan="${HEADERS.length}" class="text-center text-muted py-5"><i class="fas fa-inbox fa-3x mb-3"></i><p>No se encontraron resultados</p></td></tr>`;
+// ===== FUNCIÓN PARA MOSTRAR ARCHIVO SELECCIONADO =====
+function displaySelectedFile(file) {
+  selectedFile = file;
+  fileName.textContent = file.name;
+  fileSize.textContent = formatFileSize(file.size);
+  
+  // Ocultar zona de drop y mostrar preview
+  dropZone.style.display = 'none';
+  filePreview.style.display = 'block';
+}
+
+// ===== FUNCIÓN PARA LIMPIAR SELECCIÓN =====
+function clearSelection() {
+  selectedFile = null;
+  fileInput.value = '';
+  dropZone.style.display = 'flex';
+  filePreview.style.display = 'none';
+  
+  // Ocultar progreso y estado
+  const uploadProgress = document.getElementById('uploadProgress');
+  const uploadStatus = document.getElementById('uploadStatus');
+  uploadProgress.style.display = 'none';
+  uploadStatus.style.display = 'none';
+}
+
+// ===== EVENTO: CLICK EN BOTÓN SELECCIONAR ARCHIVO =====
+btnSelectFile.addEventListener('click', () => {
+  fileInput.click();
+});
+
+// ===== EVENTO: CLICK EN ZONA DE DROP =====
+dropZone.addEventListener('click', (e) => {
+  if (e.target !== btnSelectFile && !btnSelectFile.contains(e.target)) {
+    fileInput.click();
+  }
+});
+
+// ===== EVENTO: CAMBIO EN INPUT DE ARCHIVO =====
+fileInput.addEventListener('change', (event) => {
+  const file = event.target.files[0];
+  if (file && validateFile(file)) {
+    displaySelectedFile(file);
+  } else {
+    clearSelection();
+  }
+});
+
+// ===== EVENTO: REMOVER ARCHIVO SELECCIONADO =====
+btnRemoveFile.addEventListener('click', () => {
+  clearSelection();
+});
+
+// ===== EVENTOS DRAG & DROP =====
+dropZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropZone.classList.add('drag-over');
+});
+
+dropZone.addEventListener('dragleave', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+});
+
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    const file = files[0];
+    if (validateFile(file)) {
+      // Asignar el archivo al input
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+      
+      displaySelectedFile(file);
+    }
+  }
+});
+
+// ===== EVENTO: SUBIR ARCHIVO =====
+btnUploadFile.addEventListener('click', async () => {
+  if (!selectedFile) {
+    alert('Por favor selecciona un archivo primero');
     return;
   }
-  filteredData.forEach(row => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = HEADERS.map(h => `<td>${(row[h] !== undefined && row[h] !== null) ? row[h] : ''}</td>`).join('');
-    tableBody.appendChild(tr);
-  });
-}
-
-// ===== ESTADÍSTICAS =====
-function updateStats() {
-  totalRecords.textContent = allData.length;
-  filteredRecords.textContent = filteredData.length;
-}
-
-// ===== FILTRADO (uso de normalizados) =====
-document.getElementById('applyFilters').addEventListener('click', () => {
-  const search = normalizeText(searchAll.value);
-  const nivel = normalizeText(selNivel.value);
-  const modalidad = normalizeText(selModalidad.value);
-  const red = normalizeText(selRed.value);
-  const HEADERS = getHEADERS();
-
-  filteredData = allData.filter(row => {
-    // búsqueda en todos los campos visibles
-    const matchesSearch = !search || HEADERS.some(h => normalizeText(row[h]).includes(search));
-    // coincidencia exacta de filtro (normalizada)
-    const matchesNivel = !nivel || normalizeText(row['NIVEL DE FORMACION'] || row['Nivel de Formación'] || '') === nivel;
-    const matchesModalidad = !modalidad || normalizeText(row['Modalidad'] || '') === modalidad;
-    const matchesRed = !red || normalizeText(row['Red Tecnológica'] || row['RED TECNOLOGICA'] || row['Red de Conocimiento'] || '') === red;
-    return matchesSearch && matchesNivel && matchesModalidad && matchesRed;
-  });
-
-  renderTable();
-  updateStats();
+  
+  await uploadCatalogo();
 });
 
-document.getElementById('clearFilters').addEventListener('click', () => {
-  searchAll.value = '';
-  selNivel.value = '';
-  selModalidad.value = '';
-  selRed.value = '';
-  filteredData = [...allData];
-  renderTable();
-  updateStats();
-});
-
-// ===== EXPORTAR =====
-document.getElementById('exportExcel').addEventListener('click', () => {
-  const HEADERS = getHEADERS();
-  if (!filteredData || !filteredData.length) {
-    return alert('No hay datos para exportar');
+// ===== FUNCIÓN PARA SUBIR EL CATÁLOGO =====
+async function uploadCatalogo() {
+  const uploadProgress = document.getElementById('uploadProgress');
+  const progressBar = document.getElementById('progressBar');
+  const progressPercentage = document.getElementById('progressPercentage');
+  const progressText = document.getElementById('progressText');
+  const uploadStatus = document.getElementById('uploadStatus');
+  const statusMessage = document.getElementById('statusMessage');
+  
+  try {
+    // Deshabilitar botones y mostrar progreso
+    btnUploadFile.disabled = true;
+    btnRemoveFile.disabled = true;
+    btnUploadFile.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Subiendo...';
+    uploadProgress.style.display = 'block';
+    progressBar.style.width = '50%';
+    progressPercentage.textContent = '50%';
+    
+    // Realizar la petición
+    const response = await catalogoService.uploadExcelCatalogo(selectedFile);
+    
+    // Actualizar progreso a completado
+    progressBar.style.width = '100%';
+    progressPercentage.textContent = '100%';
+    progressBar.classList.remove('progress-bar-animated');
+    progressText.innerHTML = '<i class="fas fa-check-circle text-success"></i> ¡Archivo subido exitosamente!';
+    
+    // Guardar información de la carga
+    catalogoService.saveUploadInfo({
+      fileName: selectedFile.name,
+      fileSize: selectedFile.size,
+      response: response
+    });
+    
+    // Mostrar modal de éxito
+    setTimeout(() => {
+      showSuccessModal(response);
+      clearSelection();
+      loadLastUploadInfo();
+    }, 1500);
+    
+  } catch (error) {
+    console.error('Error al subir el catálogo:', error);
+    
+    // Mostrar mensaje de error
+    progressBar.classList.remove('bg-success');
+    progressBar.classList.add('bg-danger');
+    progressBar.classList.remove('progress-bar-animated');
+    progressText.innerHTML = '<i class="fas fa-times-circle text-danger"></i> Error al subir el archivo';
+    
+    statusMessage.className = 'alert alert-danger';
+    statusMessage.innerHTML = `
+      <i class="fas fa-exclamation-triangle"></i>
+      <strong>Error:</strong> ${error.message || 'No se pudo subir el archivo'}
+    `;
+    uploadStatus.style.display = 'block';
+    
+  } finally {
+    // Restaurar botones
+    btnUploadFile.disabled = false;
+    btnRemoveFile.disabled = false;
+    btnUploadFile.innerHTML = '<i class="fas fa-upload"></i> Subir Archivo';
+    
+    // Ocultar progreso después de un delay si hubo error
+    setTimeout(() => {
+      if (progressBar.classList.contains('bg-danger')) {
+        uploadProgress.style.display = 'none';
+        progressBar.classList.remove('bg-danger');
+        progressBar.classList.add('bg-success');
+        progressBar.classList.add('progress-bar-animated');
+        progressBar.style.width = '0%';
+        progressPercentage.textContent = '0%';
+        progressText.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo archivo...';
+      }
+    }, 5000);
   }
-  const ws = XLSX.utils.json_to_sheet(filteredData, { header: HEADERS });
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'CatalogoProgramas');
-  XLSX.writeFile(wb, `CatalogoProgramas_${new Date().toISOString().slice(0,10)}.xlsx`);
-});
-
-// ===== BORRAR DATOS =====
-document.getElementById('clearAllData').addEventListener('click', () => {
-  if (!confirm('¿Borrar todos los datos del catálogo?')) return;
-  allData = [];
-  filteredData = [];
-  localStorage.removeItem('catalogoProgramas');
-  renderTable();
-  updateStats();
-});
-
-// ===== MODAL =====
-function showSuccessModal(newCount, totalCount) {
-  document.getElementById('modalNewRecords').textContent = newCount;
-  document.getElementById('modalTotalRecords').textContent = totalCount;
-  document.getElementById('modalDuplicates').textContent = Math.max(0, newCount - (totalCount - newCount)); // aproximado
-  document.getElementById('successModal').style.display = 'flex';
-}
-function closeSuccessModal() {
-  document.getElementById('successModal').style.display = 'none';
-}
-window.closeSuccessModal = closeSuccessModal;
-
-// ===== FILTROS DINÁMICOS =====
-function populateFilters() {
-  const niveles = new Set();
-  const modalidades = new Set();
-  const redes = new Set();
-  allData.forEach(r => {
-    // leer con varios posibles nombres para mayor robustez
-    const nivel = r['NIVEL DE FORMACION'] ?? r['Nivel de Formación'] ?? r['NIVEL_DE_FORMACION'] ?? '';
-    const modalidad = r['Modalidad'] ?? r['MODALIDAD'] ?? '';
-    const red = r['Red Tecnológica'] ?? r['RED TECNOLOGICA'] ?? r['Red de Conocimiento'] ?? '';
-    if ((nivel || '').toString().trim()) niveles.add(nivel.toString().trim());
-    if ((modalidad || '').toString().trim()) modalidades.add(modalidad.toString().trim());
-    if ((red || '').toString().trim()) redes.add(red.toString().trim());
-  });
-  fillSelect(selNivel, niveles);
-  fillSelect(selModalidad, modalidades);
-  fillSelect(selRed, redes);
-}
-function fillSelect(select, values) {
-  if (!select) return;
-  const arr = Array.from(values).sort((a,b) => a.localeCompare(b));
-  select.innerHTML = '<option value="">Todos</option>' + arr.map(v => `<option value="${v}">${v}</option>`).join('');
 }
 
-// ===== INICIALIZACIÓN =====
+// ===== MOSTRAR MODAL DE ÉXITO =====
+function showSuccessModal(response) {
+  const modalIcon = document.getElementById('modalIcon');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalSubtitle = document.getElementById('modalSubtitle');
+  const modalDescription = document.getElementById('modalDescription');
+  
+  // Ocultar todas las alertas primero
+  document.getElementById('alertSuccess').classList.add('d-none');
+  document.getElementById('alertWarning').classList.add('d-none');
+  document.getElementById('alertInfo').classList.add('d-none');
+  document.getElementById('alertDanger').classList.add('d-none');
+  
+  // Configurar modal según la respuesta
+  modalIcon.className = 'fas fa-check-circle';
+  modalTitle.textContent = '¡Catálogo Cargado!';
+  modalSubtitle.textContent = 'Carga exitosa';
+  modalDescription.textContent = 'El archivo Excel se procesó correctamente';
+  
+  // Mostrar mensaje de éxito
+  document.getElementById('alertSuccess').classList.remove('d-none');
+  document.getElementById('successMessage').textContent = response.message || 'El catálogo se cargó exitosamente en el sistema';
+  
+  document.getElementById('alertInfo').classList.remove('d-none');
+  
+  // Mostrar el modal
+  document.getElementById('successModal').classList.add('show');
+}
+
+// ===== CARGAR INFORMACIÓN DE LA ÚLTIMA CARGA =====
+async function loadLastUploadInfo() {
+  const lastUploadInfo = await catalogoService.getLastUploadInfo();
+  const container = document.getElementById('lastUploadInfo');
+  
+  if (lastUploadInfo) {
+    const date = new Date(lastUploadInfo.timestamp);
+    const formattedDate = date.toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    
+    container.innerHTML = `
+      <div class="d-flex align-items-start mb-3">
+        <div class="flex-shrink-0">
+          <i class="fas fa-file-excel text-success fa-2x"></i>
+        </div>
+        <div class="flex-grow-1 ms-3">
+          <h6 class="mb-1"><strong>${lastUploadInfo.fileName}</strong></h6>
+          <p class="text-muted small mb-1">
+            <i class="fas fa-hdd"></i> ${formatFileSize(lastUploadInfo.fileSize)}
+          </p>
+          <p class="text-muted small mb-0">
+            <i class="fas fa-clock"></i> ${formattedDate}
+          </p>
+        </div>
+      </div>
+      <div class="alert alert-success mb-0 small">
+        <i class="fas fa-check-circle"></i> Carga completada exitosamente
+      </div>
+    `;
+  }
+}
+
+// ===== FUNCIÓN AUXILIAR PARA FORMATEAR TAMAÑO DE ARCHIVO =====
+function formatFileSize(bytes) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+// ===== INICIALIZAR EL MÓDULO =====
+async function Init() {
+  console.log('Módulo de Catálogo inicializado');
+  await loadLastUploadInfo();
+}
+
+// Inicializar al cargar la página
 document.addEventListener('DOMContentLoaded', () => {
-  allData = loadData();
-  filteredData = [...allData];
-  renderTable();
-  updateStats();
-  populateFilters();
+  Init();
 });
+
+export { Init };
