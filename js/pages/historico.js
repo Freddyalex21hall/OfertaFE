@@ -1,4 +1,4 @@
-import { panelService } from '../api/panel.service.js';
+import { panelService } from '../api/historico.service.js';
 const MAX_RECORDS = 25000;
 // ===== VARIABLES GLOBALES =====
 let allData = [];
@@ -7,6 +7,36 @@ let currentPage = 1;
 const PAGE_SIZE = 50;
 let currentPageActive = 1;
 let currentPageClosed = 1;
+
+function normalizeText(v){
+  return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+function extractArrayPayload(res){
+  if (Array.isArray(res)) return res;
+  function pick(obj){
+    if (!obj || typeof obj !== 'object') return undefined;
+    const keys = ['data','historico','results','items'];
+    for (const k of keys){
+      const v = obj[k];
+      if (Array.isArray(v)) return v;
+      if (v && typeof v === 'object'){
+        const nested = pick(v);
+        if (Array.isArray(nested)) return nested;
+      }
+    }
+    for (const k in obj){
+      const v = obj[k];
+      if (Array.isArray(v)) return v;
+      if (v && typeof v === 'object'){
+        const nested = pick(v);
+        if (Array.isArray(nested)) return nested;
+      }
+    }
+    return undefined;
+  }
+  const arr = pick(res);
+  return Array.isArray(arr) ? arr : [];
+}
 
 // ===== CARGAR DATOS DESDE SESSIONSTORAGE AL INICIO =====
 function loadDataFromMemory() {
@@ -411,8 +441,10 @@ document.getElementById('filterFechaFin')?.addEventListener('change', () => {
 document.getElementById('clearFilters').addEventListener('click', () => {
   searchAll.value = '';
   document.querySelectorAll('.filter-group select').forEach(select => select.value = '');
-  document.getElementById('filterFechaInicio')?.value = '';
-  document.getElementById('filterFechaFin')?.value = '';
+  const elInicio = document.getElementById('filterFechaInicio');
+  if (elInicio) elInicio.value = '';
+  const elFin = document.getElementById('filterFechaFin');
+  if (elFin) elFin.value = '';
   filteredData = [...allData];
   currentPage = 1;
   currentPage = 1;
@@ -785,8 +817,22 @@ if (allData.length > 0) {
 async function loadFromAPI(getter, ...args){
   try{
     const res = await getter(...args);
-    const data = Array.isArray(res) ? res : (res && res.data ? res.data : []);
-    if(!Array.isArray(data)) return;
+    console.log('[Historico][API Raw Response]', { endpoint: getter?.name, args, res });
+    const data = extractArrayPayload(res);
+    console.log('[Historico][API Extracted Array]', Array.isArray(data) ? { length: data.length, sample: data.slice(0, 5) } : { data });
+    if(!Array.isArray(data) || data.length === 0){
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="33" class="text-center text-muted py-5">
+            <i class="fas fa-database fa-3x mb-3 d-block"></i>
+            <p>No hay datos disponibles desde la API</p>
+          </td>
+        </tr>`;
+      renderActiveTable();
+      renderClosedTable();
+      renderPagination();
+      return;
+    }
     allData = data.map(r => ({
       CODIGO_REGIONAL: String(r.cod_regional || ''),
       NOMBRE_REGIONAL: r.nombre_regional || '',
@@ -824,6 +870,7 @@ async function loadFromAPI(getter, ...args){
       CERTIFICADOS: r.num_aprendices_certificados ?? 0,
       TRASLADADOS: r.num_aprendices_trasladados ?? 0
     }));
+    console.log('[Historico][Mapped allData]', { length: allData.length, sample: allData.slice(0, 5) });
     filteredData = [...allData];
     saveDataToMemory();
     populateFilters();
@@ -833,7 +880,16 @@ async function loadFromAPI(getter, ...args){
     renderTable();
     updateStats();
   }catch(err){
-    console.error(err);
+    tableBody.innerHTML = `
+      <tr>
+        <td colspan="33" class="text-center text-danger py-5">
+          <i class="fas fa-exclamation-triangle fa-3x mb-3 d-block"></i>
+          <p>Error al cargar datos desde la API</p>
+        </td>
+      </tr>`;
+    renderActiveTable();
+    renderClosedTable();
+    renderPagination();
   }
 }
 async function fetchHistoricoTodos(){
@@ -884,14 +940,14 @@ function imprimirGraficaCentros(data){
 
 function getActiveOffers(){
   return filteredData.filter(row => {
-    const estado = row.ESTADO_FICHA?.toLowerCase() || '';
-    return estado.includes('ejecucion') || estado.includes('activa');
+    const estado = normalizeText(row.ESTADO_FICHA);
+    return estado.includes('ejecucion') || estado.includes('activa') || estado.includes('en curso');
   });
 }
 function getClosedOffers(){
   return filteredData.filter(row => {
-    const estado = row.ESTADO_FICHA?.toLowerCase() || '';
-    return estado.includes('cerrada') || estado.includes('terminada');
+    const estado = normalizeText(row.ESTADO_FICHA);
+    return estado.includes('cerrada') || estado.includes('terminada') || estado.includes('finalizada') || estado.includes('finalizado') || estado.includes('cerrado');
   });
 }
 
