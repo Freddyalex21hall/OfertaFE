@@ -76,6 +76,20 @@ const closedTableBody = document.getElementById('closedTableBody');
 const statsContent = document.getElementById('statsContent');
 const totalRecords = document.getElementById('totalRecords');
 const filteredRecords = document.getElementById('filteredRecords');
+const loadingOverlay = document.getElementById('loadingOverlay');
+const loadingText = document.getElementById('loadingText');
+
+function showLoading(text){
+  if (loadingOverlay){
+    if (loadingText && text) loadingText.textContent = text;
+    loadingOverlay.style.display = 'block';
+  }
+}
+function hideLoading(){
+  if (loadingOverlay){
+    loadingOverlay.style.display = 'none';
+  }
+}
 
 // ===== MANEJO DE CARGA DE ARCHIVOS =====
 uploadZone.addEventListener('click', () => fileInput.click());
@@ -105,27 +119,31 @@ fileInput.addEventListener('change', (e) => {
 });
 
 // ===== PROCESAR ARCHIVO EXCEL =====
-function processFile(file) {
+async function processFile(file) {
   const name = file?.name || '';
   if (!/\.(xlsx|xls)$/i.test(name)) {
     alert('Formato de archivo no soportado. Por favor, suba un Excel (.xlsx o .xls).');
     return;
   }
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
+      showLoading('Leyendo archivo...');
+      await new Promise(r => setTimeout(r, 0));
       const data = new Uint8Array(e.target.result);
       const workbook = XLSX.read(data, { type: 'array' });
+      showLoading('Procesando Excel...');
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
       
       if (!jsonData || jsonData.length === 0) {
+        hideLoading();
         alert('El archivo no contiene datos válidos');
         return;
       }
 
-      // Detectar duplicados
-      const result = addDataWithoutDuplicates(jsonData);
+      showLoading('Integrando registros...');
+      const result = await addDataWithoutDuplicatesChunked(jsonData);
       
       saveDataToMemory();
       
@@ -133,13 +151,33 @@ function processFile(file) {
       renderTable();
       updateStats();
       
+      hideLoading();
       showSuccessModal(result);
     } catch (error) {
       console.error('Error procesando archivo:', error);
+      hideLoading();
       alert('Error al procesar el archivo Excel. Verifica el formato.');
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+async function addDataWithoutDuplicatesChunked(newData){
+  const CHUNK_SIZE = 2000;
+  let addedCount = 0, duplicateCount = 0, exceededCount = 0;
+  const totalInFile = newData.length;
+  for (let i = 0; i < newData.length; i += CHUNK_SIZE){
+    const chunk = newData.slice(i, i + CHUNK_SIZE);
+    const res = addDataWithoutDuplicates(chunk);
+    addedCount += res.addedCount;
+    duplicateCount += res.duplicateCount;
+    exceededCount += res.exceededCount;
+    if (i + CHUNK_SIZE < newData.length){
+      showLoading(`Integrando registros... ${Math.min(i + CHUNK_SIZE, totalInFile)}/${totalInFile}`);
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+  return { totalInFile, addedCount, duplicateCount, exceededCount, totalInSystem: allData.length };
 }
 
 // ===== AGREGAR DATOS SIN DUPLICADOS =====
