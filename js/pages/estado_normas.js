@@ -1,3 +1,6 @@
+// ===== IMPORTAR SERVICIOS =====
+import { estadoNormasService } from '../api/estado-normas.service.js';
+
 // ===== VARIABLES GLOBALES =====
 let allData = [];
 let filteredData = [];
@@ -100,6 +103,9 @@ function processFile(file) {
       renderTable();
       updateStats();
       
+      // Enviar archivo al backend
+      uploadFileToBackend(file, result);
+      
       showSuccessModal(result);
     } catch (error) {
       console.error('Error procesando archivo:', error);
@@ -107,6 +113,33 @@ function processFile(file) {
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+// ===== ENVIAR ARCHIVO AL BACKEND =====
+async function uploadFileToBackend(file, processingResult) {
+  try {
+    console.log('Enviando archivo al backend:', file.name);
+    
+    const backendResponse = await estadoNormasService.uploadEstadoNormas(file);
+    
+    console.log('Respuesta del backend:', backendResponse);
+    
+    // Guardar información de carga exitosa
+    estadoNormasService.saveUploadInfo({
+      fileName: file.name,
+      fileSize: file.size,
+      processingResult,
+      backendResponse,
+      localProcessing: processingResult
+    });
+    
+    console.log('✓ Archivo subido exitosamente al backend');
+    
+  } catch (error) {
+    console.error('Error al enviar archivo al backend:', error);
+    console.warn('El archivo se procesó localmente, pero no se sincronizó con el backend:', error.message);
+    // No mostrar alerta al usuario ya que el archivo se procesó localmente correctamente
+  }
 }
 
 // ===== AGREGAR DATOS SIN DUPLICADOS =====
