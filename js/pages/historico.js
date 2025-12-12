@@ -7,6 +7,7 @@ let currentPage = 1;
 const PAGE_SIZE = 50;
 let currentPageActive = 1;
 let currentPageClosed = 1;
+let isPopulating = false;
 
 function normalizeText(v){
   return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -142,7 +143,32 @@ async function processFile(file) {
         return;
       }
 
+      function getField(row, keys){
+        const map = {};
+        for (const k in row){ map[normalizeText(k)] = row[k]; }
+        for (const key of keys){
+          const v = map[normalizeText(key)];
+          if (v !== undefined && v !== null) return v;
+        }
+        return undefined;
+      }
+      function isValidRowRegional(row){
+        const cod = getField(row,['cod_regional','codigo_regional','codigo de regional','codigo regional','cod regional']);
+        const nom = getField(row,['nombre_regional','regional','nombre de regional','nombre regional']);
+        const codNum = parseInt(cod);
+        const nomNorm = normalizeText(nom);
+        return codNum === 66 && nomNorm.includes('risaralda');
+      }
+      const validRows = jsonData.filter(isValidRowRegional);
+      const invalidCount = jsonData.length - validRows.length;
+      if (validRows.length === 0){
+        hideLoading();
+        alert('El archivo no contiene registros de la Regional 66 - RISARALDA. No se subirá.');
+        return;
+      }
+
       try{
+        if (invalidCount > 0) throw new Error('Archivo contiene registros de otras regionales');
         showLoading('Subiendo al servidor...');
         const res = await panelService.uploadExcelHistorico(file);
         console.log('[Historico][Upload Response]', res);
@@ -155,8 +181,8 @@ async function processFile(file) {
         console.error('Error al subir a la API, se mostrará localmente:', uploadErr);
       }
 
-      showLoading('Integrando registros localmente...');
-      const result = await addDataWithoutDuplicatesChunked(jsonData);
+      showLoading('Integrando registros localmente (RISARALDA)...');
+      const result = await addDataWithoutDuplicatesChunked(validRows);
       saveDataToMemory();
       populateFilters();
       renderTable();
@@ -233,6 +259,7 @@ function addDataWithoutDuplicates(newData) {
 
 // ===== POBLAR FILTROS DINÁMICAMENTE =====
 function populateFilters() {
+  isPopulating = true;
   const filters = {
     filterRegional: 'NOMBRE_REGIONAL',
     filterCentro: 'NOMBRE_CENTRO',
@@ -248,7 +275,14 @@ function populateFilters() {
   Object.keys(filters).forEach(filterId => {
     const select = document.getElementById(filterId);
     const field = filters[filterId];
-    const uniqueValues = [...new Set(allData.map(item => item[field]).filter(Boolean))].sort();
+    const seen = new Map();
+    allData.forEach(item => {
+      const v = item[field];
+      if (!v) return;
+      const key = normalizeText(v);
+      if (!seen.has(key)) seen.set(key, String(v));
+    });
+    const uniqueValues = Array.from(seen.values()).sort();
     
     select.innerHTML = '<option value="">Todos</option>';
     uniqueValues.forEach(value => {
@@ -259,12 +293,16 @@ function populateFilters() {
     });
   });
   updateDependentFilters();
+  isPopulating = false;
 }
 
 // ===== RENDERIZAR TABLA PRINCIPAL =====
 function renderTable() {
   tableBody.innerHTML = '';
 
+  if (filteredData.length === 0 && allData.length > 0) {
+    filteredData = [...allData];
+  }
   if (filteredData.length === 0) {
     tableBody.innerHTML = `
       <tr>
@@ -277,9 +315,11 @@ function renderTable() {
     return;
   }
 
+  console.log('[Historico][RenderTable] filteredData:', { length: filteredData.length });
   const start = (currentPage - 1) * PAGE_SIZE;
   const end = start + PAGE_SIZE;
   const pageData = filteredData.slice(start, end);
+  console.log('[Historico][RenderTable] pageData sample:', pageData.slice(0, 3));
 
   pageData.forEach(row => {
     const tr = document.createElement('tr');
@@ -440,19 +480,24 @@ document.getElementById('applyFilters').addEventListener('click', () => {
   const fechaInicio = document.getElementById('filterFechaInicio').value;
   const fechaFin = document.getElementById('filterFechaFin').value;
 
+  function matchField(rowVal, selVal){
+    if (!selVal) return true;
+    return normalizeText(rowVal) === normalizeText(selVal);
+  }
+
   filteredData = allData.filter(row => {
     const matchSearch = !searchAllValue || Object.values(row).some(val => 
       String(val).toLowerCase().includes(searchAllValue)
     );
-    const matchRegional = !regional || row.NOMBRE_REGIONAL === regional;
-    const matchCentro = !centro || row.NOMBRE_CENTRO === centro;
-    const matchPrograma = !programa || row.PROGRAMA_FORMACION === programa;
-    const matchNivel = !nivel || row.NIVEL_FORMACION === nivel;
-    const matchModalidad = !modalidad || row.MODALIDAD_FORMACION === modalidad;
-    const matchJornada = !jornada || row.JORNADA === jornada;
-    const matchEstado = !estado || row.ESTADO_FICHA === estado;
-    const matchEstrategia = !estrategia || row.CODIGO_ESTRATEGIA === estrategia;
-    const matchMunicipio = !municipio || row.MUNICIPIO === municipio;
+    const matchRegional = matchField(row.NOMBRE_REGIONAL, regional);
+    const matchCentro = matchField(row.NOMBRE_CENTRO, centro);
+    const matchPrograma = matchField(row.PROGRAMA_FORMACION, programa);
+    const matchNivel = matchField(row.NIVEL_FORMACION, nivel);
+    const matchModalidad = matchField(row.MODALIDAD_FORMACION, modalidad);
+    const matchJornada = matchField(row.JORNADA, jornada);
+    const matchEstado = matchField(row.ESTADO_FICHA, estado);
+    const matchEstrategia = matchField(row.CODIGO_ESTRATEGIA, estrategia);
+    const matchMunicipio = matchField(row.MUNICIPIO, municipio);
     const rowInicio = row.FECHA_INICIO ? new Date(row.FECHA_INICIO) : null;
     const rowFin = row.FECHA_FIN ? new Date(row.FECHA_FIN) : null;
     const matchFechaInicio = !fechaInicio || (rowInicio && rowInicio >= new Date(fechaInicio));
@@ -472,7 +517,7 @@ document.getElementById('applyFilters').addEventListener('click', () => {
 
 document.querySelectorAll('.filter-group select').forEach(sel => {
   sel.addEventListener('change', () => {
-    document.getElementById('applyFilters').click();
+    if (!isPopulating) document.getElementById('applyFilters').click();
   });
 });
 document.getElementById('searchAll')?.addEventListener('input', () => {
@@ -869,15 +914,7 @@ async function loadFromAPI(getter, ...args){
     const data = extractArrayPayload(res);
     console.log('[Historico][API Extracted Array]', Array.isArray(data) ? { length: data.length, sample: data.slice(0, 5) } : { data });
     if(!Array.isArray(data) || data.length === 0){
-      tableBody.innerHTML = `
-        <tr>
-          <td colspan="33" class="text-center text-muted py-5">
-            <i class="fas fa-database fa-3x mb-3 d-block"></i>
-            <p>No hay datos disponibles desde la API</p>
-          </td>
-        </tr>`;
-      renderActiveTable();
-      renderClosedTable();
+      console.warn('[Historico] Respuesta vacía, se mantiene la tabla actual');
       renderPagination();
       return;
     }
@@ -962,16 +999,23 @@ fetchHistoricoTodos();
 export { fetchHistoricoTodos, fetchHistoricoPorCentro, fetchHistoricoPorPrograma, fetchHistoricoPorFicha, fetchHistoricoPorJornada, fetchHistoricoPorMunicipio };
 
 function imprimirGraficaCentros(data){
-  const totals = {};
+  const totalsByCode = new Map();
+  const nameByCode = new Map();
   (Array.isArray(data) ? data : []).forEach(r => {
-    const centro = r.NOMBRE_CENTRO || String(r.CODIGO_CENTRO || '') || 'Sin Centro';
+    const code = String(r.CODIGO_CENTRO || r.cod_centro || '').trim() || null;
+    const name = (r.NOMBRE_CENTRO || r.nombre_centro || '').trim();
+    const key = code || name || 'Sin Centro';
     const val = parseInt(r.MATRICULADOS) || 0;
-    totals[centro] = (totals[centro] || 0) + val;
+    totalsByCode.set(key, (totalsByCode.get(key) || 0) + val);
+    if (!nameByCode.has(key)) nameByCode.set(key, name);
   });
-  const entries = Object.entries(totals).sort((a,b) => b[1]-a[1]).slice(0,5);
-  const labels = entries.map(e => e[0]);
-  const series = entries.map(e => e[1]);
-  const uniqueCentersCount = Object.keys(totals).length || 0;
+  const entries = Array.from(totalsByCode.entries()).sort((a,b) => b[1]-a[1]).slice(0,5);
+  const labels = entries.map(([key]) => {
+    const nm = nameByCode.get(key) || '';
+    return nm && key ? `${nm} (${key})` : (nm || key || 'Centro');
+  });
+  const series = entries.map(([,val]) => val);
+  const uniqueCentersCount = totalsByCode.size || 0;
   const options = {
     series: series.length ? series : [10, 8, 6, 4, 2],
     chart: { width: 640, type: 'pie' },

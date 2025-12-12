@@ -1,25 +1,32 @@
 import { panelService } from "../api/panel.service.js";
 
 function imprimirGrafica(data){
-    const totals = {};
-    const valueKeys = ["MATRICULADOS","num_aprendices_inscritos","INSCRITOS"]; 
+    const totals = new Map();
+    const nameByCode = new Map();
+    const keys = ["MATRICULADOS","num_aprendices_inscritos","INSCRITOS"];
     (Array.isArray(data) ? data : []).forEach(r => {
-        const prog = r.PROGRAMA_FORMACION || r.programa || r.PROGRAMA || "Sin Programa";
+        const code = String(r.CODIGO_CENTRO || r.cod_centro || '').trim();
+        const name = (r.NOMBRE_CENTRO || r.nombre_centro || '').trim();
+        const key = code || name || "Sin Centro";
         let val = 0;
-        for (const k of valueKeys){
+        for (const k of keys){
             const n = parseInt(r[k]);
             if (!isNaN(n) && n > 0){ val = n; break; }
         }
         if (val === 0) val = 1;
-        totals[prog] = (totals[prog] || 0) + val;
+        totals.set(key, (totals.get(key) || 0) + val);
+        if (!nameByCode.has(key)) nameByCode.set(key, name);
     });
-    const entries = Object.entries(totals).sort((a,b) => b[1]-a[1]).slice(0,5);
-    const labels = entries.map(e => e[0]);
-    const series = entries.map(e => e[1]);
+    const entries = Array.from(totals.entries()).sort((a,b) => b[1]-a[1]).slice(0,5);
+    const labels = entries.map(([key]) => {
+        const nm = nameByCode.get(key) || '';
+        return nm && key ? `${nm} (${key})` : (nm || key || 'Centro');
+    });
+    const series = entries.map(([,val]) => val);
     const options = {
         series: series.length ? series : [100, 70, 80, 300, 28],
         chart: { width: 380, type: 'pie' },
-        labels: labels.length ? labels : ['ADSO', 'ALIMENTOS', 'COCINA', 'DEPORTIVO', 'MESA Y BAR'],
+        labels: labels.length ? labels : ['Centro A (1111)', 'Centro B (2222)', 'Centro C (3333)', 'Centro D (4444)', 'Centro E (5555)'],
         responsive: [{ breakpoint: 480, options: { chart: { width: 200 }, legend: { position: 'bottom' } } }]
     };
     const el = document.querySelector("#aprendicesPrograma");
