@@ -29,7 +29,12 @@ export async function request(endpoint, options = {}) {
     }
 
     try {
-        const response = await fetch(url, { ...options, headers });
+        // Si el body es FormData, dejamos que el navegador ponga el boundary y no forzamos Content-Type
+        const opts = { ...options, headers: { ...headers } };
+        if (opts.body instanceof FormData) {
+            delete opts.headers['Content-Type'];
+        }
+        const response = await fetch(url, opts);
 
         // Manejo centralizado del error 401 (Token inválido/expirado)
         if (response.status === 401) {
