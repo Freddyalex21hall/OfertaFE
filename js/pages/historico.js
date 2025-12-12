@@ -66,6 +66,21 @@ function saveDataToMemory() {
 // ===== INICIALIZAR DATOS =====
 allData = loadDataFromMemory();
 filteredData = [...allData];
+let existingKeys = new Set();
+function initIndexFromMemory(){
+  existingKeys = new Set();
+  for (const r of allData){
+    const ficha = r.FICHA ? String(r.FICHA).trim() : '';
+    if (ficha) existingKeys.add(`F:${ficha}`); else {
+      const programa = String(r.PROGRAMA_FORMACION || '').trim();
+      const centro = String(r.NOMBRE_CENTRO || '').trim();
+      const inicio = String(r.FECHA_INICIO || '').trim();
+      const modalidad = String(r.MODALIDAD_FORMACION || '').trim();
+      existingKeys.add(`C:${programa}|${centro}|${inicio}|${modalidad}`);
+    }
+  }
+}
+initIndexFromMemory();
 
 // ===== ELEMENTOS DEL DOM =====
 const uploadZone = document.getElementById('uploadZone');
@@ -79,16 +94,25 @@ const totalRecords = document.getElementById('totalRecords');
 const filteredRecords = document.getElementById('filteredRecords');
 const loadingOverlay = document.getElementById('loadingOverlay');
 const loadingText = document.getElementById('loadingText');
+let overlayShownAt = 0;
+const MIN_OVERLAY_MS = 500;
 
 function showLoading(text){
   if (loadingOverlay){
+    overlayShownAt = performance.now();
     if (loadingText && text) loadingText.textContent = text;
     loadingOverlay.style.display = 'block';
   }
 }
 function hideLoading(){
   if (loadingOverlay){
-    loadingOverlay.style.display = 'none';
+    const elapsed = performance.now() - overlayShownAt;
+    const remain = Math.max(0, MIN_OVERLAY_MS - elapsed);
+    if (remain > 0){
+      setTimeout(() => { loadingOverlay.style.display = 'none'; }, remain);
+    } else {
+      loadingOverlay.style.display = 'none';
+    }
   }
 }
 
@@ -126,6 +150,7 @@ async function processFile(file) {
     alert('Formato de archivo no soportado. Por favor, suba un Excel (.xlsx o .xls).');
     return;
   }
+  showLoading('Preparando archivo...');
   const reader = new FileReader();
   reader.onload = async (e) => {
     try {
@@ -216,6 +241,22 @@ async function addDataWithoutDuplicatesChunked(newData){
   return { totalInFile, addedCount, duplicateCount, exceededCount, totalInSystem: allData.length };
 }
 
+function getRowKey(row){
+  const ficha = row.FICHA ? String(row.FICHA).trim() : '';
+  if (ficha) return `F:${ficha}`;
+  const programa = String(row.PROGRAMA_FORMACION || '').trim();
+  const centro = String(row.NOMBRE_CENTRO || '').trim();
+  const inicio = String(row.FECHA_INICIO || '').trim();
+  const modalidad = String(row.MODALIDAD_FORMACION || '').trim();
+  return `C:${programa}|${centro}|${inicio}|${modalidad}`;
+}
+function rebuildIndex(){
+  existingKeys = new Set();
+  for (const r of allData){
+    existingKeys.add(getRowKey(r));
+  }
+}
+
 // ===== AGREGAR DATOS SIN DUPLICADOS =====
 function addDataWithoutDuplicates(newData) {
   let addedCount = 0;
@@ -224,17 +265,8 @@ function addDataWithoutDuplicates(newData) {
   const totalInFile = newData.length;
 
   newData.forEach(newRow => {
-    const isDuplicate = allData.some(existingRow => {
-      if (newRow.FICHA && existingRow.FICHA) {
-        return String(newRow.FICHA).trim() === String(existingRow.FICHA).trim();
-      }
-      const keysMatch =
-        String(newRow.PROGRAMA_FORMACION || '').trim() === String(existingRow.PROGRAMA_FORMACION || '').trim() &&
-        String(newRow.NOMBRE_CENTRO || '').trim() === String(existingRow.NOMBRE_CENTRO || '').trim() &&
-        String(newRow.FECHA_INICIO || '').trim() === String(existingRow.FECHA_INICIO || '').trim() &&
-        String(newRow.MODALIDAD_FORMACION || '').trim() === String(existingRow.MODALIDAD_FORMACION || '').trim();
-      return keysMatch;
-    });
+    const key = getRowKey(newRow);
+    const isDuplicate = existingKeys.has(key);
 
     if (isDuplicate) {
       duplicateCount++;
@@ -242,6 +274,7 @@ function addDataWithoutDuplicates(newData) {
       exceededCount++;
     } else {
       allData.push(newRow);
+      existingKeys.add(key);
       addedCount++;
     }
   });
@@ -957,6 +990,7 @@ async function loadFromAPI(getter, ...args){
     }));
     console.log('[Historico][Mapped allData]', { length: allData.length, sample: allData.slice(0, 5) });
     filteredData = [...allData];
+    rebuildIndex();
     saveDataToMemory();
     populateFilters();
     currentPage = 1;
