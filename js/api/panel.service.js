@@ -8,6 +8,11 @@ export const panelService = {
 
         return respuesta;
     },
+    uploadExcelHistorico: (file) => {
+        const fd = new FormData();
+        fd.append('file', file);
+        return request(`/cargar/upload-excel-historico/`, { method: 'POST', body: fd });
+    },
     porGrupo: (id_grupo) => request(`/historico/obtener-por-grupo/${id_grupo}`),
     porFicha: (ficha) => request(`/historico/obtener-por-ficha/${ficha}`),
     porCodPrograma: (cod_programa) => request(`/historico/obtener-por-cod_programa/${cod_programa}`),

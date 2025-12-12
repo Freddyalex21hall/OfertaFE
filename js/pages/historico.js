@@ -142,15 +142,25 @@ async function processFile(file) {
         return;
       }
 
-      showLoading('Integrando registros...');
+      try{
+        showLoading('Subiendo al servidor...');
+        const res = await panelService.uploadExcelHistorico(file);
+        console.log('[Historico][Upload Response]', res);
+        showLoading('Actualizando datos del servidor...');
+        await fetchHistoricoTodos();
+        hideLoading();
+        alert('✓ Archivo subido y datos actualizados desde el servidor');
+        return;
+      }catch(uploadErr){
+        console.error('Error al subir a la API, se mostrará localmente:', uploadErr);
+      }
+
+      showLoading('Integrando registros localmente...');
       const result = await addDataWithoutDuplicatesChunked(jsonData);
-      
       saveDataToMemory();
-      
       populateFilters();
       renderTable();
       updateStats();
-      
       hideLoading();
       showSuccessModal(result);
     } catch (error) {
