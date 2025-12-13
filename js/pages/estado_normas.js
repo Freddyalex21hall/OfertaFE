@@ -118,27 +118,64 @@ function processFile(file) {
 // ===== ENVIAR ARCHIVO AL BACKEND =====
 async function uploadFileToBackend(file, processingResult) {
   try {
-    console.log('Enviando archivo al backend:', file.name);
+    console.log('=== INICIANDO CARGA AL BACKEND ===');
+    console.log('Archivo:', file.name);
+    console.log('Tamaño:', file.size, 'bytes');
+    console.log('Tipo:', file.type);
+    
+    // Verificar si el token existe
+    const token = localStorage.getItem('access_token');
+    console.log('Token disponible:', token ? 'Sí' : 'No');
+    
+    if (!token) {
+      console.warn('⚠️ No hay token de autenticación. La carga podría fallar.');
+    }
     
     const backendResponse = await estadoNormasService.uploadEstadoNormas(file);
     
-    console.log('Respuesta del backend:', backendResponse);
+    console.log('✓ Respuesta recibida del backend:');
+    console.log(JSON.stringify(backendResponse, null, 2));
     
     // Guardar información de carga exitosa
-    estadoNormasService.saveUploadInfo({
+    const uploadInfo = {
       fileName: file.name,
       fileSize: file.size,
       processingResult,
       backendResponse,
-      localProcessing: processingResult
-    });
+      status: 'success',
+      timestamp: new Date().toISOString()
+    };
+    
+    estadoNormasService.saveUploadInfo(uploadInfo);
     
     console.log('✓ Archivo subido exitosamente al backend');
+    console.log('Información de carga guardada en localStorage');
+    
+    // Mostrar alerta de éxito en console
+    console.info('%c✓ CARGA EXITOSA', 'color: green; font-weight: bold; font-size: 14px;');
+    console.info('El archivo se ha sincronizado correctamente con la base de datos');
     
   } catch (error) {
-    console.error('Error al enviar archivo al backend:', error);
-    console.warn('El archivo se procesó localmente, pero no se sincronizó con el backend:', error.message);
-    // No mostrar alerta al usuario ya que el archivo se procesó localmente correctamente
+    console.error('=== ERROR AL ENVIAR ARCHIVO ===');
+    console.error('Mensaje de error:', error.message);
+    console.error('Stack:', error.stack);
+    
+    // Guardar información de carga fallida para análisis
+    const uploadInfo = {
+      fileName: file.name,
+      fileSize: file.size,
+      processingResult,
+      status: 'failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    };
+    
+    estadoNormasService.saveUploadInfo(uploadInfo);
+    
+    console.warn('%c⚠️ El archivo se procesó localmente pero no se sincronizó con el backend', 'color: orange; font-weight: bold;');
+    console.warn('Detalles del error:', error.message);
+    console.warn('Revisa la consola para más información');
+    console.warn('Los datos están disponibles localmente en sessionStorage');
   }
 }
 
