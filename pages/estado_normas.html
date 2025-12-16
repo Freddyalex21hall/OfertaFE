@@ -177,32 +177,6 @@
         </div>
 
         <div class="filter-group">
-          <label>Código Programa</label>
-          <input type="text" class="form-control form-control-sm" id="filterCodigoPrograma" placeholder="Buscar código...">
-        </div>
-
-        <div class="filter-group">
-          <label>Tipo de Programa</label>
-          <select class="form-select form-select-sm" id="filterTipoPrograma">
-            <option value="">Todos</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label>Nivel de Formación</label>
-          <select class="form-select form-select-sm" id="filterNivelFormacion">
-            <option value="">Todos</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label>Estado Programa</label>
-          <select class="form-select form-select-sm" id="filterEstadoPrograma">
-            <option value="">Todos</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
           <label>Red de Conocimiento</label>
           <select class="form-select form-select-sm" id="filterRedConocimiento">
             <option value="">Todos</option>
@@ -217,6 +191,20 @@
         </div>
 
         <div class="filter-group">
+          <label>Tipo de Norma</label>
+          <select class="form-select form-select-sm" id="filterTipoNorma">
+            <option value="">Todos</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>Mesa Sectorial</label>
+          <select class="form-select form-select-sm" id="filterMesaSectorial">
+            <option value="">Todos</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
           <label>Tipo de Competencia</label>
           <select class="form-select form-select-sm" id="filterTipoCompetencia">
             <option value="">Todos</option>
@@ -226,6 +214,15 @@
         <div class="filter-group">
           <label>Vigencia</label>
           <select class="form-select form-select-sm" id="filterVigencia">
+            <option value="">Todos</option>
+            <option value="Activo">Activo</option>
+            <option value="Inactivo">Inactivo</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>Código Programa</label>
+          <select class="form-select form-select-sm" id="filterCodigoPrograma">
             <option value="">Todos</option>
           </select>
         </div>
@@ -271,26 +268,25 @@
             <table class="table table-striped table-hover table-sm" id="normasTable">
               <thead class="table-dark">
                 <tr>
-                  <th>COD DEL PROGRAMA</th>
-                  <th>VERSION PROG</th>
-                  <th>COD VERSION</th>
-                  <th>TIPO PROGRAMA</th>
-                  <th>NIVEL DE FORMACIÓN</th>
-                  <th>NOMBRE DEL PROGRAMA</th>
-                  <th>ESTADO PROGRAMA</th>
-                  <th>FECHA ELABORACIÓN</th>
-                  <th>AÑO</th>
-                  <th>RED DE CONOCIMIENTO</th>
-                  <th>NOMBRE NCL</th>
-                  <th>COD NCL</th>
-                  <th>NCL VERSION</th>
-                  <th>TIPO DE COMPETENCIA</th>
-                  <th>VIGENCIA</th>
+                  <th>Red Conocimiento</th>
+                  <th>Nombre NCL</th>
+                  <th>Código NCL</th>
+                  <th>Versión NCL</th>
+                  <th>Norma Corte NOVIEMBRE</th>
+                  <th>Versión</th>
+                  <th>Norma - Versión</th>
+                  <th>Mesa Sectorial</th>
+                  <th>Tipo de Norma</th>
+                  <th>Observación</th>
+                  <th>Fecha de Revisión</th>
+                  <th>Tipo de Competencia</th>
+                  <th>Vigencia</th>
+                  <th>Fecha de Elaboración</th>
                 </tr>
               </thead>
               <tbody id="tableBody">
                 <tr>
-                  <td colspan="15" class="text-center text-muted py-5">
+                  <td colspan="14" class="text-center text-muted py-5">
                     <i class="fas fa-inbox fa-3x mb-3"></i>
                     <p>No hay datos disponibles. Por favor, carga un archivo Excel.</p>
                   </td>
@@ -320,12 +316,10 @@
             <table class="table table-success table-sm">
               <thead>
                 <tr>
-                  <th>COD DEL PROGRAMA</th>
-                  <th>NOMBRE DEL PROGRAMA</th>
-                  <th>NIVEL DE FORMACIÓN</th>
-                  <th>RED DE CONOCIMIENTO</th>
-                  <th>NOMBRE NCL</th>
-                  <th>TIPO DE COMPETENCIA</th>
+                  <th>Red Conocimiento</th>
+                  <th>Nombre NCL</th>
+                  <th>Tipo de Norma</th>
+                  <th>Mesa Sectorial</th>
                   <th>Vigencia</th>
                 </tr>
               </thead>
@@ -340,14 +334,11 @@
             <table class="table table-secondary table-sm">
               <thead>
                 <tr>
-                  <th>COD DEL PROGRAMA</th>
-                  <th>NOMBRE DEL PROGRAMA</th>
-                  <th>NIVEL DE FORMACIÓN</th>
-                  <th>RED DE CONOCIMIENTO</th>
-                  <th>NOMBRE NCL</th>
-                  <th>TIPO DE COMPETENCIA</th>
-                  <th>VIGENCIA</th>
-                  <th>ESTADO PROGRAMA</th>
+                  <th>Red Conocimiento</th>
+                  <th>Nombre NCL</th>
+                  <th>Tipo de Norma</th>
+                  <th>Vigencia</th>
+                  <th>Fecha Vencimiento</th>
                 </tr>
               </thead>
               <tbody id="vencidasTableBody"></tbody>
