@@ -226,7 +226,7 @@ function renderTable() {
   if (filteredData.length === 0) {
     tableBody.innerHTML = `
       <tr>
-        <td colspan="14" class="text-center text-muted py-5">
+        <td colspan="6" class="text-center text-muted py-5">
           <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
           <p>No se encontraron resultados</p>
         </td>
@@ -246,14 +246,6 @@ function renderTable() {
       <td>${row['RED CONOCIMIENTO'] || ''}</td>
       <td>${row['NOMBRE_NCL'] || ''}</td>
       <td>${row['CODIGO NCL'] || row['NCL CODIGO'] || ''}</td>
-      <td>${row['NCL VERSION'] || ''}</td>
-      <td>${row['Norma corte a NOVIEMBRE'] || ''}</td>
-      <td>${row['Versión'] || ''}</td>
-      <td>${row['Norma - Versión'] || ''}</td>
-      <td>${row['Mesa Sectorial'] || ''}</td>
-      <td>${row['Tipo de Norma'] || ''}</td>
-      <td>${row['Observación'] || ''}</td>
-      <td>${row['Fecha de revisión'] || ''}</td>
       <td>${row['Tipo de competencia'] || ''}</td>
       <td><span class="badge ${getVigenciaBadge(row['Vigencia'])}">${row['Vigencia'] || ''}</span></td>
       <td>${row['Fecha de Elaboración'] || ''}</td>
