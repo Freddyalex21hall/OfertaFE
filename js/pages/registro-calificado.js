@@ -99,36 +99,101 @@ fileInput.addEventListener('change', (e) => {
 
 // ===== PROCESAR ARCHIVO EXCEL =====
 async function processFile(file) {
-    try {
-        console.log('Subiendo archivo a la API...');
-        
-        // Subir el archivo directamente a la API
-        const response = await registroCalificadoService.uploadExcel(file);
-        
-        console.log('Respuesta de la API:', response);
-        
-        // Extraer resultados del procesamiento
-        const result = {
-            totalInFile: response.total_procesados || response.totalInFile || 0,
-            addedCount: response.registros_nuevos || response.addedCount || 0,
-            duplicateCount: response.registros_duplicados || response.duplicateCount || 0,
-            totalInSystem: response.total_en_sistema || response.totalInSystem || 0
-        };
-        
-        // Recargar datos desde la API para reflejar los cambios
-        await fetchRegistrosCalificados();
-        
-        // Mostrar modal de éxito
-        showSuccessModal(result);
-        
-    } catch (error) {
-        console.error('Error procesando archivo:', error);
-        alert('Error al procesar el archivo Excel: ' + (error.message || 'Verifica el formato.'));
-    }
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '', raw: false });
+            
+            if (!jsonData || jsonData.length === 0) {
+                alert('El archivo no contiene datos válidos');
+                return;
+            }
+            
+            // Mapear columnas del archivo a los encabezados del HTML
+            const HEADERS = getHEADERS();
+            
+            // Construir conjunto de headers del archivo
+            const fileHeaderSet = new Set();
+            jsonData.slice(0, 20).forEach(row => Object.keys(row).forEach(k => fileHeaderSet.add(k)));
+            const fileHeaders = Array.from(fileHeaderSet);
+            
+            // Mapa: encabezado HTML -> header del archivo que mejor coincide
+            const mapHtmlToFile = new Map();
+            const normalizedFileMap = new Map();
+            
+            fileHeaders.forEach(h => {
+                const norm = canonicalize(normalize(h));
+                if (!normalizedFileMap.has(norm)) normalizedFileMap.set(norm, h);
+            });
+            
+            HEADERS.forEach(h => {
+                const normH = canonicalize(normalize(h));
+                if (normalizedFileMap.has(normH)) {
+                    mapHtmlToFile.set(h, normalizedFileMap.get(normH));
+                } else {
+                    const candidate = fileHeaders.find(fh => normalize(fh).includes(normH) || normH.includes(normalize(fh)));
+                    if (candidate) mapHtmlToFile.set(h, candidate);
+                }
+            });
+            
+            // Transformar filas del archivo a objetos con solo HEADERS del HTML
+            const transformed = jsonData.map(row => {
+                const obj = {};
+                HEADERS.forEach(h => {
+                    const sourceKey = mapHtmlToFile.get(h);
+                    let val = sourceKey ? (row[sourceKey] ?? '') : '';
+                    // Normalizar fechas
+                    if (['FECHA DE RESOLUCIÓN','Fecha de vencimiento','FECHA RADICADO'].includes(h)) {
+                        val = normalizeDate(val);
+                    }
+                    obj[h] = val;
+                });
+                return obj;
+            });
+            
+            // Verificar duplicados contra los datos actuales (que vienen de la BD)
+            const result = checkDuplicates(transformed, HEADERS);
+            
+            // Mostrar modal con estadísticas
+            showSuccessModal(result);
+            
+        } catch (error) {
+            console.error('Error procesando archivo:', error);
+            alert('Error al procesar el archivo Excel. Verifica el formato.');
+        }
+    };
+    reader.readAsArrayBuffer(file);
 }
 
-// La verificación de duplicados ahora se maneja en la API
-// La función addDataWithoutDuplicates ya no es necesaria
+// ===== VERIFICAR DUPLICADOS =====
+function checkDuplicates(newData, HEADERS = getHEADERS()) {
+    let addedCount = 0;
+    let duplicateCount = 0;
+    const totalInFile = newData.length;
+
+    newData.forEach(newRow => {
+        // Verificar si el registro ya existe en allData (que viene de la BD)
+        const isDuplicate = allData.some(existingRow => {
+            return HEADERS.every(h => (existingRow[h] || '') === (newRow[h] || ''));
+        });
+        
+        if (isDuplicate) {
+            duplicateCount++;
+        } else {
+            addedCount++;
+        }
+    });
+
+    return {
+        totalInFile,
+        addedCount,
+        duplicateCount,
+        totalInSystem: allData.length
+    };
+}
 
 // ===== MAPEAR RESPUESTA DEL BACKEND A LAS COLUMNAS DE LA TABLA =====
 function mapApiDataToTable(apiRows = []) {
