@@ -82,5 +82,49 @@ export const catalogoService = {
         } catch (error) {
             console.error('Error al guardar información de carga:', error);
         }
+    },
+
+    /**
+     * Obtener todos los programas de formación
+     * @returns {Promise<Array>}
+     */
+    obtenerTodosProgramas: async () => {
+        const url = `${API_BASE_URL}/programas_formacion/listar`;
+        const token = localStorage.getItem('access_token');
+
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'accept': 'application/json'
+                }
+            });
+
+            // Manejo de errores HTTP
+            if (response.status === 401) {
+                console.error('No tiene permisos para realizar esta acción');
+                throw new Error('No autorizado');
+            }
+
+            if (response.status === 403) {
+                console.error('Token inválido');
+                throw new Error('Token inválido');
+            }
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ 
+                    detail: 'Ocurrió un error al obtener los programas.' 
+                }));
+                throw new Error(errorData.detail || 'Error al obtener los programas');
+            }
+
+            const data = await response.json();
+            return Array.isArray(data) ? data : (data.data || []);
+
+        } catch (error) {
+            console.error('Error en obtenerTodosProgramas:', error);
+            throw error;
+        }
     }
 };

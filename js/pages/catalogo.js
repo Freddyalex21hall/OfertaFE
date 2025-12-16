@@ -176,7 +176,11 @@ function addDataWithoutDuplicates(newData) {
 // ===== EXTRAER COLUMNAS DEL ARCHIVO =====
 function extractColumns() {
   if (allData.length === 0) return;
+  
+  // Extraer TODAS las columnas del primer registro
   tableColumns = Object.keys(allData[0]);
+  
+  console.log('Columnas detectadas:', tableColumns);
 }
 
 // ===== POBLAR FILTROS DINÁMICAMENTE =====
@@ -563,10 +567,87 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// ===== INICIALIZACIÓN =====
-if (allData.length > 0) {
-  extractColumns();
-  populateFilters();
-  renderTable();
-  updateStats();
+// ===== CARGAR DATOS AL INICIAR =====
+async function loadInitialData() {
+  const loadingIndicator = document.getElementById('loadingIndicator');
+  const tableContainer = document.getElementById('tableContainer');
+  
+  try {
+    // Mostrar indicador de carga
+    if (loadingIndicator && tableContainer) {
+      loadingIndicator.style.display = 'block';
+      tableContainer.style.display = 'none';
+    }
+
+    console.log('Iniciando carga de datos desde la API...');
+    
+    // Primero intenta cargar desde la API
+    let programas = await catalogoService.obtenerTodosProgramas();
+    
+    console.log('Respuesta de la API:', programas);
+    console.log('Tipo de datos:', typeof programas);
+    console.log('Es array:', Array.isArray(programas));
+    
+    // Manejo flexible de la respuesta
+    if (programas) {
+      // Si es un objeto con propiedad 'data' o 'results' o 'items'
+      if (!Array.isArray(programas)) {
+        if (programas.data && Array.isArray(programas.data)) {
+          programas = programas.data;
+        } else if (programas.results && Array.isArray(programas.results)) {
+          programas = programas.results;
+        } else if (programas.items && Array.isArray(programas.items)) {
+          programas = programas.items;
+        } else {
+          // Intentar extraer el primer array encontrado
+          const firstArray = Object.values(programas).find(val => Array.isArray(val));
+          programas = firstArray || [];
+        }
+      }
+      
+      console.log('Datos procesados. Total:', programas.length);
+      
+      if (programas.length > 0) {
+        allData = programas;
+        filteredData = [...allData];
+        saveDataToMemory();
+        extractColumns();
+        populateFilters();
+        renderTable();
+        updateStats();
+        console.log(`✓ Se cargaron ${programas.length} programas desde la API`);
+      } else {
+        console.warn('⚠ La API no retornó datos. Usando datos guardados...');
+        // Si no hay datos en API, cargar desde sessionStorage
+        if (allData.length > 0) {
+          extractColumns();
+          populateFilters();
+          renderTable();
+          updateStats();
+        }
+      }
+    } else {
+      console.warn('⚠ Respuesta vacía de la API');
+    }
+  } catch (error) {
+    console.error('✗ Error cargando datos iniciales:', error);
+    console.error('Detalles del error:', error.message);
+    // Si falla la API, usar datos guardados
+    if (allData.length > 0) {
+      console.log('Usando datos guardados en sessionStorage...');
+      extractColumns();
+      populateFilters();
+      renderTable();
+      updateStats();
+    }
+  } finally {
+    // Ocultar indicador de carga
+    if (loadingIndicator && tableContainer) {
+      loadingIndicator.style.display = 'none';
+      tableContainer.style.display = 'block';
+    }
+  }
 }
+
+// ===== INICIALIZACIÓN =====
+loadInitialData();
