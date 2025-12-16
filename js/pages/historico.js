@@ -149,6 +149,7 @@ const uploadsList = document.getElementById('uploadsList');
 const btnUploads = document.getElementById('btnUploads');
 btnUploads?.addEventListener('click', () => {
   if (!uploadsPanel) return;
+  console.log('[Historico] Toggle panel subidas. Estado actual:', uploadsPanel.style.display, 'Lista:', uploads);
   uploadsPanel.style.display = uploadsPanel.style.display === 'none' ? 'block' : 'none';
 });
 let uploads = [];
