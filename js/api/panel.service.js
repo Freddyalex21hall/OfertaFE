@@ -54,7 +54,7 @@ export const registroCalificadoService = {
     uploadExcel: (file) => {
         const fd = new FormData();
         fd.append('file', file);
-        return request('/Registro-Calificado/upload-excel-registro-calificado', { 
+        return request('/Registro-Calificado/upload-excel-registro-calificado/', { 
             method: 'POST', 
             body: fd 
         });
