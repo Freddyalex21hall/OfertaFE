@@ -657,6 +657,75 @@ if (nextPageBtn) {
 function updateStats() {
     totalRecords.textContent = allData.length;
     filteredRecords.textContent = filteredData.length;
+    updateVigenciaBar();
+}
+
+// ===== ACTUALIZAR BARRA DE VIGENCIA =====
+function updateVigenciaBar() {
+    const HEADERS = getHEADERS();
+    const vencCol = HEADERS.find(h => normalize(h) === normalize('Fecha de vencimiento')) || 'Fecha de vencimiento';
+    
+    let countVencidos = 0;
+    let countPorVencer = 0;
+    let countVigentes = 0;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const in30 = new Date(today);
+    in30.setDate(in30.getDate() + 30);
+    
+    allData.forEach(row => {
+        const fechaVenc = parseYMD(row[vencCol]);
+        if (!fechaVenc) return;
+        
+        if (fechaVenc < today) {
+            countVencidos++;
+        } else if (fechaVenc >= today && fechaVenc <= in30) {
+            countPorVencer++;
+        } else {
+            countVigentes++;
+        }
+    });
+    
+    const total = countVencidos + countPorVencer + countVigentes;
+    const percentVencidos = total > 0 ? ((countVencidos / total) * 100).toFixed(1) : 0;
+    const percentPorVencer = total > 0 ? ((countPorVencer / total) * 100).toFixed(1) : 0;
+    const percentVigentes = total > 0 ? ((countVigentes / total) * 100).toFixed(1) : 0;
+    
+    // Actualizar las barras
+    const barVencidos = document.getElementById('barVencidos');
+    const barPorVencer = document.getElementById('barPorVencer');
+    const barVigentes = document.getElementById('barVigentes');
+    
+    if (barVencidos) {
+        barVencidos.style.width = `${percentVencidos}%`;
+        barVencidos.setAttribute('aria-valuenow', percentVencidos);
+    }
+    
+    if (barPorVencer) {
+        barPorVencer.style.width = `${percentPorVencer}%`;
+        barPorVencer.setAttribute('aria-valuenow', percentPorVencer);
+    }
+    
+    if (barVigentes) {
+        barVigentes.style.width = `${percentVigentes}%`;
+        barVigentes.setAttribute('aria-valuenow', percentVigentes);
+    }
+    
+    // Actualizar los contadores de texto
+    const countVencidosEl = document.getElementById('countVencidos');
+    const countPorVencerEl = document.getElementById('countPorVencer');
+    const countVigentesEl = document.getElementById('countVigentes');
+    const percentVencidosEl = document.getElementById('percentVencidos');
+    const percentPorVencerEl = document.getElementById('percentPorVencer');
+    const percentVigentesEl = document.getElementById('percentVigentes');
+    
+    if (countVencidosEl) countVencidosEl.textContent = countVencidos;
+    if (countPorVencerEl) countPorVencerEl.textContent = countPorVencer;
+    if (countVigentesEl) countVigentesEl.textContent = countVigentes;
+    if (percentVencidosEl) percentVencidosEl.textContent = `${percentVencidos}%`;
+    if (percentPorVencerEl) percentPorVencerEl.textContent = `${percentPorVencer}%`;
+    if (percentVigentesEl) percentVigentesEl.textContent = `${percentVigentes}%`;
 }
 
 // ===== APLICAR FILTROS =====
