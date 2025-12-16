@@ -384,12 +384,47 @@ function renderTable() {
 
     const startIdx = (currentPage - 1) * PAGE_SIZE;
     const pageRows = filteredData.slice(startIdx, startIdx + PAGE_SIZE);
+    const vencCol = HEADERS.find(h => normalize(h) === normalize('Fecha de vencimiento')) || 'Fecha de vencimiento';
+    
     pageRows.forEach(row => {
         const tr = document.createElement('tr');
         tr.innerHTML = HEADERS.map(h => `<td>${row[h] || ''}</td>`).join('');
+        
+        // Aplicar color según estado de vigencia
+        const estado = getEstadoVigencia(row[vencCol]);
+        if (estado === 'vencido') {
+            tr.style.backgroundColor = '#ffcccc'; // Rojo claro
+        } else if (estado === 'por-vencer') {
+            tr.style.backgroundColor = '#fff4cc'; // Amarillo claro
+        } else if (estado === 'vigente') {
+            tr.style.backgroundColor = '#ccffcc'; // Verde claro
+        }
+        
         tableBody.appendChild(tr);
     });
     renderPagination();
+}
+
+// ===== DETERMINAR ESTADO DE VIGENCIA =====
+function getEstadoVigencia(fechaVencimiento) {
+    if (!fechaVencimiento) return null;
+    
+    const fechaVenc = parseYMD(fechaVencimiento);
+    if (!fechaVenc) return null;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const in30 = new Date(today);
+    in30.setDate(in30.getDate() + 30);
+    
+    if (fechaVenc < today) {
+        return 'vencido';
+    } else if (fechaVenc >= today && fechaVenc <= in30) {
+        return 'por-vencer';
+    } else {
+        return 'vigente';
+    }
 }
 
 // ===== Normalización de fechas =====
