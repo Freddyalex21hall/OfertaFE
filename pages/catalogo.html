@@ -9,6 +9,61 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <link rel="stylesheet" href="../assets/css/styles.min.css">
   <link rel="stylesheet" href="../assets/css/style.css">
+  <style>
+    /* Estilos personalizados para la tabla del catálogo */
+    #catalogoTable th {
+      background-color: #343a40;
+      color: white;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      white-space: nowrap;
+      padding: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      letter-spacing: 0.5px;
+      border-bottom: 3px solid #0056b3;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    #catalogoTable td {
+      vertical-align: middle;
+      padding: 8px 12px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    #catalogoTable tbody tr:hover {
+      background-color: #f1f8ff;
+    }
+
+    /* Barra de movilización dentro de la celda */
+    .cell-content {
+      max-width: 300px; /* Ancho máximo para evitar columnas muy anchas */
+      max-height: 80px; /* Altura máxima para evitar filas muy altas */
+      overflow: auto;   /* Scroll automático (horizontal o vertical) */
+      font-size: 0.9rem;
+      color: #333;
+      
+      /* Estilizado del scrollbar para que sea sutil */
+      scrollbar-width: thin;
+      scrollbar-color: #adb5bd #f8f9fa;
+    }
+
+    .cell-content::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    .cell-content::-webkit-scrollbar-track {
+      background: #f8f9fa;
+    }
+
+    .cell-content::-webkit-scrollbar-thumb {
+      background-color: #adb5bd;
+      border-radius: 3px;
+    }
+  </style>
 </head>
 <body>
   <!-- Header Principal -->

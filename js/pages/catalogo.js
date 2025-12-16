@@ -385,7 +385,14 @@ function renderTable() {
     const tr = document.createElement('tr');
     tableColumns.forEach(column => {
       const td = document.createElement('td');
-      td.textContent = row[column] || '';
+      
+      // Crear contenedor con scroll para contenido largo
+      const div = document.createElement('div');
+      div.className = 'cell-content';
+      div.textContent = row[column] || '';
+      div.title = row[column] || ''; // Tooltip nativo para ver todo el contenido
+      
+      td.appendChild(div);
       tr.appendChild(td);
     });
     tableBody.appendChild(tr);
