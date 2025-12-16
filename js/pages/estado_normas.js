@@ -131,27 +131,15 @@ async function uploadFileToBackend(file, processingResult) {
       console.warn('⚠️ No hay token de autenticación. La carga podría fallar.');
     }
     
-    const backendResponse = await estadoNormasService.uploadEstadoNormas(file);
+    const backendResponse = await estadoNormasService.uploadExcel(file);
     
     console.log('✓ Respuesta recibida del backend:');
     console.log(JSON.stringify(backendResponse, null, 2));
     
-    // Guardar información de carga exitosa
-    const uploadInfo = {
-      fileName: file.name,
-      fileSize: file.size,
-      processingResult,
-      backendResponse,
-      status: 'success',
-      timestamp: new Date().toISOString()
-    };
-    
-    estadoNormasService.saveUploadInfo(uploadInfo);
+    // Recargar datos desde la API después de la carga exitosa
+    await fetchEstadoNormasFromAPI();
     
     console.log('✓ Archivo subido exitosamente al backend');
-    console.log('Información de carga guardada en localStorage');
-    
-    // Mostrar alerta de éxito en console
     console.info('%c✓ CARGA EXITOSA', 'color: green; font-weight: bold; font-size: 14px;');
     console.info('El archivo se ha sincronizado correctamente con la base de datos');
     
@@ -159,18 +147,6 @@ async function uploadFileToBackend(file, processingResult) {
     console.error('=== ERROR AL ENVIAR ARCHIVO ===');
     console.error('Mensaje de error:', error.message);
     console.error('Stack:', error.stack);
-    
-    // Guardar información de carga fallida para análisis
-    const uploadInfo = {
-      fileName: file.name,
-      fileSize: file.size,
-      processingResult,
-      status: 'failed',
-      error: error.message,
-      timestamp: new Date().toISOString()
-    };
-    
-    estadoNormasService.saveUploadInfo(uploadInfo);
     
     console.warn('%c⚠️ El archivo se procesó localmente pero no se sincronizó con el backend', 'color: orange; font-weight: bold;');
     console.warn('Detalles del error:', error.message);
@@ -250,7 +226,7 @@ function renderTable() {
   if (filteredData.length === 0) {
     tableBody.innerHTML = `
       <tr>
-        <td colspan="14" class="text-center text-muted py-5">
+        <td colspan="6" class="text-center text-muted py-5">
           <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
           <p>No se encontraron resultados</p>
         </td>
@@ -270,14 +246,6 @@ function renderTable() {
       <td>${row['RED CONOCIMIENTO'] || ''}</td>
       <td>${row['NOMBRE_NCL'] || ''}</td>
       <td>${row['CODIGO NCL'] || row['NCL CODIGO'] || ''}</td>
-      <td>${row['NCL VERSION'] || ''}</td>
-      <td>${row['Norma corte a NOVIEMBRE'] || ''}</td>
-      <td>${row['Versión'] || ''}</td>
-      <td>${row['Norma - Versión'] || ''}</td>
-      <td>${row['Mesa Sectorial'] || ''}</td>
-      <td>${row['Tipo de Norma'] || ''}</td>
-      <td>${row['Observación'] || ''}</td>
-      <td>${row['Fecha de revisión'] || ''}</td>
       <td>${row['Tipo de competencia'] || ''}</td>
       <td><span class="badge ${getVigenciaBadge(row['Vigencia'])}">${row['Vigencia'] || ''}</span></td>
       <td>${row['Fecha de Elaboración'] || ''}</td>
@@ -810,17 +778,66 @@ function imprimirGraficaTipoNorma(data){
   chart.render();
 }
 
-// ===== INICIALIZACIÓN =====
-if (allData.length > 0) {
-  populateFilters();
-  renderTable();
-  updateStats();
-}
-
-export function Init() {
-  if (allData.length > 0) {
+// ===== CARGAR DATOS DESDE LA API =====
+async function fetchEstadoNormasFromAPI() {
+  try {
+    console.log('Cargando datos desde la API...');
+    const res = await estadoNormasService.getAll();
+    
+    // Extraer el array de datos de diferentes estructuras de respuesta
+    const data = Array.isArray(res) ? res : (res?.data || res?.items || res?.records || []);
+    
+    if (!Array.isArray(data) || data.length === 0) {
+      console.warn('Respuesta sin registros o formato no esperado', res);
+      allData = [];
+      filteredData = [];
+    } else {
+      // Mapear datos del backend al formato esperado por la tabla
+      allData = data.map(row => ({
+        'RED CONOCIMIENTO': row.red_conocimiento || row.red || '',
+        'NOMBRE_NCL': row.nombre_ncl || row.nombre || '',
+        'CODIGO NCL': row.codigo_ncl || row.codigo || '',
+        'NCL VERSION': row.version || row.ncl_version || '',
+        'Norma corte a NOVIEMBRE': row.norma_corte || '',
+        'Versión': row.version || '',
+        'Norma - Versión': row.norma_version || `${row.codigo_ncl || ''} - ${row.version || ''}`,
+        'Mesa Sectorial': row.mesa_sectorial || row.mesa || '',
+        'Tipo de Norma': row.tipo_norma || row.tipo || '',
+        'Observación': row.observacion || '',
+        'Fecha de revisión': row.fecha_revision || '',
+        'Tipo de competencia': row.tipo_competencia || '',
+        'Vigencia': row.vigencia || '',
+        'Fecha de Elaboración': row.fecha_elaboracion || '',
+        'CODIGO PROGRAMA': row.codigo_programa || ''
+      }));
+      filteredData = [...allData];
+      saveDataToMemory(); // Guardar en sessionStorage
+      console.log(`✓ ${allData.length} registros cargados desde la API`);
+    }
+    
     populateFilters();
     renderTable();
     updateStats();
+  } catch (error) {
+    console.error('Error cargando estado de normas desde API:', error);
+    // Si falla la API, intentar cargar desde sessionStorage
+    allData = loadDataFromMemory();
+    filteredData = [...allData];
+    if (allData.length > 0) {
+      console.info('Usando datos guardados localmente');
+      populateFilters();
+      renderTable();
+      updateStats();
+    }
   }
+}
+
+// ===== INICIALIZACIÓN =====
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('Página cargada. Iniciando carga de datos desde la API...');
+  await fetchEstadoNormasFromAPI();
+});
+
+export function Init() {
+  fetchEstadoNormasFromAPI();
 }

@@ -1,11 +1,28 @@
 // Este archivo tendrá una única función request que se encargará de todo el trabajo estandar: 
 // añadir la URL base, poner el token, y manejar los errores 401. Esto evita repetir código en cada servicio.
 
+
+
 // La única función que necesitamos importar es la de logout.
 // La importamos para usarla en caso de un error 401.
 
 import { logout } from './user.service.js';
 const API_BASE_URL = 'https://oferta-production-44e9.up.railway.app';
+
+console.log('API CLIENT NUEVO CARGADO', API_BASE_URL);
+
+async function readBody(response) {
+    if (response.status === 204) return {};
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+    const text = await response.text();
+
+    // Priorizar JSON si el servidor lo indica o si es parseable
+    if (contentType.includes('application/json')) {
+        try { return JSON.parse(text); } catch (_) { /* fall back to other strategies */ }
+    }
+    try { return JSON.parse(text); } catch (_) { /* ignore */ }
+    return text;
+}
 
 /**
  * Cliente central para realizar todas las peticiones a la API.
@@ -48,12 +65,15 @@ export async function request(endpoint, options = {}) {
         }
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ detail: 'Ocurrió un error en la petición.' }));
-            throw new Error(errorData.detail);
+            const errorData = await readBody(response);
+            const detail = typeof errorData === 'string'
+                ? errorData
+                : (errorData?.detail || errorData?.message || 'Ocurrió un error en la petición.');
+            throw new Error(detail);
         }
         
-        // Si la respuesta no tiene contenido (ej. status 204), devolvemos un objeto vacío.
-        return response.status === 204 ? {} : await response.json();
+        // Devuelve el cuerpo parseado (JSON o texto) o un objeto vacío si no hay contenido.
+        return await readBody(response);
 
     } catch (error) {
         console.error(`Error en la petición a ${endpoint}:`, error);

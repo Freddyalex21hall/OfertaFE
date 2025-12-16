@@ -99,6 +99,19 @@ fileInput.addEventListener('change', (e) => {
 
 // ===== PROCESAR ARCHIVO EXCEL =====
 async function processFile(file) {
+    const name = file?.name || '';
+    if (!/\.(xlsx|xls)$/i.test(name)) {
+        alert('Formato de archivo no soportado. Por favor, sube un Excel (.xlsx o .xls).');
+        return;
+    }
+
+    // Cargar datos actuales desde API antes de validar duplicados locales
+    if (!allData || allData.length === 0) {
+        try { await fetchRegistrosCalificados(); } catch (_) {}
+    }
+
+    const prevTotal = allData.length;
+
     const reader = new FileReader();
     reader.onload = async (e) => {
         try {
@@ -106,29 +119,29 @@ async function processFile(file) {
             const workbook = XLSX.read(data, { type: 'array' });
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
             const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '', raw: false });
-            
+
             if (!jsonData || jsonData.length === 0) {
                 alert('El archivo no contiene datos válidos');
                 return;
             }
-            
+
             // Mapear columnas del archivo a los encabezados del HTML
             const HEADERS = getHEADERS();
-            
+
             // Construir conjunto de headers del archivo
             const fileHeaderSet = new Set();
             jsonData.slice(0, 20).forEach(row => Object.keys(row).forEach(k => fileHeaderSet.add(k)));
             const fileHeaders = Array.from(fileHeaderSet);
-            
+
             // Mapa: encabezado HTML -> header del archivo que mejor coincide
             const mapHtmlToFile = new Map();
             const normalizedFileMap = new Map();
-            
+
             fileHeaders.forEach(h => {
                 const norm = canonicalize(normalize(h));
                 if (!normalizedFileMap.has(norm)) normalizedFileMap.set(norm, h);
             });
-            
+
             HEADERS.forEach(h => {
                 const normH = canonicalize(normalize(h));
                 if (normalizedFileMap.has(normH)) {
@@ -138,14 +151,13 @@ async function processFile(file) {
                     if (candidate) mapHtmlToFile.set(h, candidate);
                 }
             });
-            
+
             // Transformar filas del archivo a objetos con solo HEADERS del HTML
             const transformed = jsonData.map(row => {
                 const obj = {};
                 HEADERS.forEach(h => {
                     const sourceKey = mapHtmlToFile.get(h);
                     let val = sourceKey ? (row[sourceKey] ?? '') : '';
-                    // Normalizar fechas
                     if (['FECHA DE RESOLUCIÓN','Fecha de vencimiento','FECHA RADICADO'].includes(h)) {
                         val = normalizeDate(val);
                     }
@@ -153,37 +165,100 @@ async function processFile(file) {
                 });
                 return obj;
             });
-            
-            // Verificar duplicados contra los datos actuales (que vienen de la BD)
-            const result = checkDuplicates(transformed, HEADERS);
-            
-            // Mostrar modal con estadísticas
-            showSuccessModal(result);
-            
+
+            // Resultado local preliminar (por si el backend no devuelve métricas)
+            const localResult = checkDuplicates(transformed, HEADERS);
+
+            // Subir al backend para que guarde en BD y devuelva métricas reales
+            const backendUpload = await uploadFileToBackend(file);
+
+            // Recargar datos desde la API para reflejar lo guardado en BD
+            await fetchRegistrosCalificados();
+
+            const modalResult = buildModalResult({
+                backendStats: backendUpload?.stats,
+                localResult,
+                processed: transformed.length,
+                prevTotal,
+                newTotal: allData.length
+            });
+
+            showSuccessModal(modalResult);
+
         } catch (error) {
             console.error('Error procesando archivo:', error);
-            alert('Error al procesar el archivo Excel. Verifica el formato.');
+            const detail = error?.message ? ` Detalle: ${error.message}` : '';
+            alert(`Error al procesar o subir el archivo Excel.${detail}`);
         }
     };
     reader.readAsArrayBuffer(file);
 }
 
 // ===== VERIFICAR DUPLICADOS =====
+function normalizeKeyValue(val) {
+    if (val === null || val === undefined) return '';
+    let s = String(val).trim();
+    // Normalizar fechas a YYYY/MM/DD si parecen fechas
+    const maybeDate = normalizeDate(s);
+    if (maybeDate && /\d{4}\/[01]\d\/[0-3]\d/.test(maybeDate)) s = maybeDate;
+    return normalize(s); // mayúsculas, sin tildes, espacios compactados
+}
+
+function pickFirst(row, candidates) {
+    for (const key of candidates) {
+        if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
+            return row[key];
+        }
+    }
+    return '';
+}
+
+function buildRowKey(row) {
+    // Intentar claves robustas presentes en Excel y API
+    const code = normalizeKeyValue(pickFirst(row, [
+        'COD DEL PROGRAMA', 'CODIGO PROGRAMA', 'CÓDIGO PROGRAMA', 'CODIGO DEL PROGRAMA', 'SNIES', 'CÓDIGO SNIES', 'CODIGO SNIES'
+    ]));
+    const nres = normalizeKeyValue(pickFirst(row, [
+        'NUMERO DE RESOLUCION', 'NOMBRE DE RESOLUCIÓN', 'NOMBRE DE RESOLUCION'
+    ]));
+    const fres = normalizeKeyValue(pickFirst(row, [
+        'FECHA DE RESOLUCIÓN', 'FECHA RESOLUCION'
+    ]));
+    // Si no hay suficientes campos, usar combinación con fecha radicado
+    const frad = normalizeKeyValue(pickFirst(row, [
+        'FECHA RADICADO'
+    ]));
+    const modality = normalizeKeyValue(pickFirst(row, [
+        'MODALIDAD'
+    ]));
+
+    // Clave principal: código + número resolución + fecha resolución
+    if (code || nres || fres) {
+        return [code, nres, fres].join('|');
+    }
+    // Alternativa: código + fecha radicado + modalidad
+    if (code || frad) {
+        return [code, frad, modality].join('|');
+    }
+    // Fallback: concatenar todas las columnas conocidas de forma normalizada
+    return Object.keys(row).sort().map(k => `${k}:${normalizeKeyValue(row[k])}`).join('||');
+}
+
 function checkDuplicates(newData, HEADERS = getHEADERS()) {
     let addedCount = 0;
     let duplicateCount = 0;
     const totalInFile = newData.length;
 
+    // Construir set de claves existentes
+    const existingKeys = new Set(allData.map(buildRowKey));
+
     newData.forEach(newRow => {
-        // Verificar si el registro ya existe en allData (que viene de la BD)
-        const isDuplicate = allData.some(existingRow => {
-            return HEADERS.every(h => (existingRow[h] || '') === (newRow[h] || ''));
-        });
-        
-        if (isDuplicate) {
+        const key = buildRowKey(newRow);
+        if (existingKeys.has(key)) {
             duplicateCount++;
         } else {
             addedCount++;
+            existingKeys.add(key);
         }
     });
 
@@ -192,6 +267,82 @@ function checkDuplicates(newData, HEADERS = getHEADERS()) {
         addedCount,
         duplicateCount,
         totalInSystem: allData.length
+    };
+}
+
+// ===== Helpers para interpretar métricas del backend y fusionarlas con conteos locales =====
+function toNumber(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+}
+
+function firstNumber(candidates = []) {
+    for (const c of candidates) {
+        const num = toNumber(c);
+        if (num !== null) return num;
+    }
+    return null;
+}
+
+function deriveStatsFromBackend(payload) {
+    const stats = { addedCount: null, duplicateCount: null, totalInSystem: null, totalInFile: null };
+    const sources = [payload, payload?.data, payload?.result, payload?.payload];
+
+    const pick = (src, keys) => {
+        for (const k of keys) {
+            const num = toNumber(src?.[k]);
+            if (num !== null) return num;
+        }
+        return null;
+    };
+
+    sources.forEach(src => {
+        if (!src || typeof src !== 'object') return;
+        if (stats.addedCount === null) {
+            stats.addedCount = pick(src, [
+                'nuevos', 'nuevos_registros', 'insertados', 'inserted', 'creados', 'created',
+                'guardados', 'registros_guardados', 'registros_creados', 'added', 'added_count', 'created_count'
+            ]) ?? (Array.isArray(src.insertados) ? src.insertados.length : null) ?? (Array.isArray(src.created) ? src.created.length : null);
+        }
+        if (stats.duplicateCount === null) {
+            stats.duplicateCount = pick(src, [
+                'duplicados', 'duplicates', 'repetidos', 'ya_existian', 'registros_duplicados', 'duplicados_count'
+            ]) ?? (Array.isArray(src.duplicados) ? src.duplicados.length : null) ?? (Array.isArray(src.duplicates) ? src.duplicates.length : null);
+        }
+        if (stats.totalInSystem === null) {
+            stats.totalInSystem = pick(src, [
+                'total', 'total_en_sistema', 'total_en_bd', 'total_registros', 'total_records', 'total_bd'
+            ]);
+        }
+        if (stats.totalInFile === null) {
+            stats.totalInFile = pick(src, [
+                'total_archivo', 'procesados', 'procesados_archivo', 'total_en_archivo', 'total_file', 'count_file', 'filas_leidas'
+            ]);
+        }
+    });
+
+    return stats;
+}
+
+async function uploadFileToBackend(file) {
+    const uploadResponse = await registroCalificadoService.uploadExcel(file);
+    const stats = deriveStatsFromBackend(uploadResponse);
+    return { payload: uploadResponse, stats };
+}
+
+function buildModalResult({ backendStats = {}, localResult = {}, processed = 0, prevTotal = 0, newTotal = allData.length }) {
+    const addedFromDiff = Math.max(newTotal - prevTotal, 0);
+    const addedCount = firstNumber([backendStats.addedCount, addedFromDiff, localResult.addedCount]);
+    const duplicateCount = firstNumber([backendStats.duplicateCount, localResult.duplicateCount, 0]);
+    const totalInFile = firstNumber([backendStats.totalInFile, localResult.totalInFile, processed]);
+    const totalInSystem = firstNumber([backendStats.totalInSystem, newTotal, allData.length]);
+
+    return {
+        totalInFile: totalInFile ?? processed,
+        addedCount: addedCount ?? 0,
+        duplicateCount: duplicateCount ?? 0,
+        totalInSystem: totalInSystem ?? newTotal ?? allData.length
     };
 }
 
@@ -206,10 +357,23 @@ function mapApiDataToTable(apiRows = []) {
             FECHA_RADICADO: normalizeDate(row.fecha_radicado ?? ''),
             NUMERO_RESOLUCION: row.numero_resolucion ?? row.num_resolucion ?? '',
             FECHA_RESOLUCION: normalizeDate(row.fecha_resolucion ?? ''),
+            RESUELVE: row.resuelve ?? '',
             SNIES: row.snies ?? row.codigo_snies ?? row.cod_programa ?? '',
             FECHA_VENCIMIENTO: normalizeDate(row.fecha_vencimiento ?? ''),
+            VIGENCIA_RC: row.vigencia_rc ?? '',
             CODIGO_PROGRAMA: row.codigo_programa ?? row.cod_programa ?? '',
-            MODALIDAD: row.modalidad ?? row.modalidad_formacion ?? ''
+            NOMBRE_PROGRAMA: row.nombre_programa ?? row.programa ?? '',
+            NIVEL_FORMACION: row.nivel_formacion ?? row.nivel ?? '',
+            RED_CONOCIMIENTO: row.red_conocimiento ?? row.red ?? '',
+            MODALIDAD: row.modalidad ?? row.modalidad_formacion ?? '',
+            CENTRO_FORMACION: row.centro_formacion ?? row.centro ?? '',
+            NOMBRE_SEDE: row.nombre_sede ?? row.sede ?? '',
+            TIPO_SEDE: row.tipo_sede ?? '',
+            MUNICIPIO: row.municipio ?? '',
+            LUGAR_DESARROLLO: row.lugar_desarrollo ?? '',
+            REGIONAL: row.regional ?? '',
+            NOMBRE_REGIONAL: row.nombre_regional ?? '',
+            CLASIFICACION_TRAMITE: row.clasificacion_tramite ?? ''
         };
 
         const mapped = {};
@@ -330,12 +494,56 @@ function renderTable() {
 
     const startIdx = (currentPage - 1) * PAGE_SIZE;
     const pageRows = filteredData.slice(startIdx, startIdx + PAGE_SIZE);
+    const vencCol = HEADERS.find(h => normalize(h) === normalize('Fecha de vencimiento')) || 'Fecha de vencimiento';
+    
     pageRows.forEach(row => {
         const tr = document.createElement('tr');
         tr.innerHTML = HEADERS.map(h => `<td>${row[h] || ''}</td>`).join('');
+        
+        // Aplicar color según estado de vigencia
+        const fechaVenc = row[vencCol];
+        const estado = getEstadoVigencia(fechaVenc);
+        
+        if (estado === 'vencido') {
+            tr.style.backgroundColor = '#ffcccc'; // Rojo claro
+            tr.classList.add('table-danger');
+        } else if (estado === 'por-vencer') {
+            tr.style.backgroundColor = '#fff9cc'; // Amarillo claro
+            tr.classList.add('table-warning');
+        } else if (estado === 'vigente') {
+            tr.style.backgroundColor = '#d4edda'; // Verde claro
+            tr.classList.add('table-success');
+        }
+        
         tableBody.appendChild(tr);
     });
     renderPagination();
+}
+
+// ===== DETERMINAR ESTADO DE VIGENCIA =====
+function getEstadoVigencia(fechaVencimiento) {
+    if (!fechaVencimiento) {
+        return null;
+    }
+    
+    const fechaVenc = parseYMD(fechaVencimiento);
+    if (!fechaVenc) {
+        return null;
+    }
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const in30 = new Date(today);
+    in30.setDate(in30.getDate() + 30);
+    
+    if (fechaVenc < today) {
+        return 'vencido';
+    } else if (fechaVenc >= today && fechaVenc <= in30) {
+        return 'por-vencer';
+    } else {
+        return 'vigente';
+    }
 }
 
 // ===== Normalización de fechas =====
@@ -449,6 +657,75 @@ if (nextPageBtn) {
 function updateStats() {
     totalRecords.textContent = allData.length;
     filteredRecords.textContent = filteredData.length;
+    updateVigenciaBar();
+}
+
+// ===== ACTUALIZAR BARRA DE VIGENCIA =====
+function updateVigenciaBar() {
+    const HEADERS = getHEADERS();
+    const vencCol = HEADERS.find(h => normalize(h) === normalize('Fecha de vencimiento')) || 'Fecha de vencimiento';
+    
+    let countVencidos = 0;
+    let countPorVencer = 0;
+    let countVigentes = 0;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const in30 = new Date(today);
+    in30.setDate(in30.getDate() + 30);
+    
+    allData.forEach(row => {
+        const fechaVenc = parseYMD(row[vencCol]);
+        if (!fechaVenc) return;
+        
+        if (fechaVenc < today) {
+            countVencidos++;
+        } else if (fechaVenc >= today && fechaVenc <= in30) {
+            countPorVencer++;
+        } else {
+            countVigentes++;
+        }
+    });
+    
+    const total = countVencidos + countPorVencer + countVigentes;
+    const percentVencidos = total > 0 ? ((countVencidos / total) * 100).toFixed(1) : 0;
+    const percentPorVencer = total > 0 ? ((countPorVencer / total) * 100).toFixed(1) : 0;
+    const percentVigentes = total > 0 ? ((countVigentes / total) * 100).toFixed(1) : 0;
+    
+    // Actualizar las barras
+    const barVencidos = document.getElementById('barVencidos');
+    const barPorVencer = document.getElementById('barPorVencer');
+    const barVigentes = document.getElementById('barVigentes');
+    
+    if (barVencidos) {
+        barVencidos.style.width = `${percentVencidos}%`;
+        barVencidos.setAttribute('aria-valuenow', percentVencidos);
+    }
+    
+    if (barPorVencer) {
+        barPorVencer.style.width = `${percentPorVencer}%`;
+        barPorVencer.setAttribute('aria-valuenow', percentPorVencer);
+    }
+    
+    if (barVigentes) {
+        barVigentes.style.width = `${percentVigentes}%`;
+        barVigentes.setAttribute('aria-valuenow', percentVigentes);
+    }
+    
+    // Actualizar los contadores de texto
+    const countVencidosEl = document.getElementById('countVencidos');
+    const countPorVencerEl = document.getElementById('countPorVencer');
+    const countVigentesEl = document.getElementById('countVigentes');
+    const percentVencidosEl = document.getElementById('percentVencidos');
+    const percentPorVencerEl = document.getElementById('percentPorVencer');
+    const percentVigentesEl = document.getElementById('percentVigentes');
+    
+    if (countVencidosEl) countVencidosEl.textContent = countVencidos;
+    if (countPorVencerEl) countPorVencerEl.textContent = countPorVencer;
+    if (countVigentesEl) countVigentesEl.textContent = countVigentes;
+    if (percentVencidosEl) percentVencidosEl.textContent = `${percentVencidos}%`;
+    if (percentPorVencerEl) percentPorVencerEl.textContent = `${percentPorVencer}%`;
+    if (percentVigentesEl) percentVigentesEl.textContent = `${percentVigentes}%`;
 }
 
 // ===== APLICAR FILTROS =====

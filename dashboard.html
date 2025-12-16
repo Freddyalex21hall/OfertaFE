@@ -67,6 +67,95 @@
     .sub-table.active {
       display: block;
     }
+
+    .footer-sena {
+  position: relative;
+  /* Fondo múltiple: primero la imagen, luego el degradado */
+  background-image: 
+    url('../assets/images/sena.jpg'), 
+    linear-gradient(90deg, var(--sena-primary), var(--neutral-500));
+  background-size: cover, cover;          /* Tamaño de cada fondo */
+  background-position: center, center;    /* Posición de cada fondo */
+  background-repeat: no-repeat, no-repeat;/* Evita repetición de ambos */
+  
+  color: var(--sena-accent);
+  overflow: hidden;
+  border-top-left-radius: 40px;
+  border-top-right-radius: 40px;
+  margin-top: 2rem;
+}
+
+.footer-top {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+}
+
+.footer-logo {
+  max-width: 150px;
+}
+
+.footer-title {
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 0.75rem;
+}
+
+.footer-links a {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+}
+
+.footer-links a:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.contact-info li {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.social-links a {
+  font-size: 1.4rem;
+  color: var(--sena-accent);
+  margin-right: 10px;
+  transition: color 0.3s ease;
+}
+
+.social-links a:hover {
+  color: #fff;
+}
+
+.footer-bottom {
+  background: rgba(0,0,0,0.15);
+  color: #f5f9ff;
+  z-index: 1;
+  position: relative;
+}
+
+/* ===== HEADER ===== */
+.header-bg {
+  background: linear-gradient(90deg, #28a745, #007bff);
+  color: white;
+  padding: 15px 20px;
+}
+
+.nav-item a {
+  color: white !important;
+  font-weight: 500;
+  text-decoration: none;
+  transition: opacity 0.3s;
+}
+
+.nav-item a:hover {
+  opacity: 0.8;
+}
+
+.nav-item a.active {
+  text-decoration: underline;
+}
   </style>
   <link rel="stylesheet" href="assets/css/style.css">
   <link rel="shortcut icon" type="image/png" href="assets/images/logos/sena.png" />
@@ -190,6 +279,52 @@
     </div>
   </div>
 
+
+  <footer class="footer-sena mt-auto">
+    <div class="footer-top container row py-4 mx-auto">
+      <div class="col-md-4 mb-3">
+        <p class="footer-description">
+          Servicio Nacional de Aprendizaje – SENA. Módulo de Metas. 
+          Todas las funciones, cursos y servicios oficiales están regulados y certificados.
+        </p>
+      </div>
+      <div class="col-md-2 mb-3">
+        <h6 class="footer-title">Enlaces útiles</h6>
+        <ul class="footer-links list-unstyled">
+          <li><a href="#">Inicio</a></li>
+          <li><a href="#">Oferta educativa</a></li>
+          <li><a href="#">Certificados</a></li>
+          <li><a href="#">Ayuda / Soporte</a></li>
+          <li><a href="#">Contacto</a></li>
+        </ul>
+      </div>
+      <div class="col-md-3 mb-3">
+        <h6 class="footer-title">Contacto</h6>
+        <ul class="contact-info list-unstyled">
+          <li><i class="bi bi-geo-alt-fill me-2"></i>Calle 57 No. 8 ‐ 69 Bogotá D.C., Colombia</li>
+          <li><i class="bi bi-telephone-fill me-2"></i>+(57) 601 736 60 60</li>
+          <li><i class="bi bi-phone me-2"></i>01 8000 910 270</li>
+          <li><i class="bi bi-clock-fill me-2"></i>Lun-Vie: 7:00‐19:00 ‐ Sáb: 8:00‐13:00</li>
+        </ul>
+      </div>
+      <div class="col-md-3 mb-3">
+        <h6 class="footer-title">Síguenos</h6>
+        <div class="social-links">
+          <a href="#" class="me-2"><i class="bi bi-facebook"></i></a>
+          <a href="#" class="me-2"><i class="bi bi-x"></i></a>
+          <a href="#" class="me-2"><i class="bi bi-instagram"></i></a>
+          <a href="#" class="me-2"><i class="bi bi-youtube"></i></a>
+          <a href="#" class="me-2"><i class="bi bi-linkedin"></i></a>
+        </div>
+
+      </div>
+    </div>
+    <div class="footer-bottom py-3 text-center">
+      <small>© 2025 Servicio Nacional de Aprendizaje – SENA. Todos los derechos reservados.</small>
+    </div>
+  </footer>
+
+  
   <script>
     // Toggle Mobile Menu
     const hamburgerBtn = document.getElementById('hamburgerBtn');
@@ -214,6 +349,10 @@
         hamburgerBtn.querySelector('i').className = 'fas fa-bars';
       }
     });
+
+
+
+  
   </script>
   <script type="module" src="./js/api/user.service.js"></script>
 </body>
