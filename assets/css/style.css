@@ -12,7 +12,7 @@ body {
   position: relative;
   /* Fondo múltiple: primero la imagen, luego el degradado */
   background-image: 
-    url('../img/FooterModoLight.svg'), 
+    url('../images/sena.jpg'), 
     linear-gradient(90deg, var(--sena-primary), var(--neutral-500));
   background-size: cover, cover;          /* Tamaño de cada fondo */
   background-position: center, center;    /* Posición de cada fondo */
