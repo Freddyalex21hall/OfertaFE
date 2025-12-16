@@ -41,6 +41,24 @@ export const panelService = {
 // Servicio para Registro Calificado (mismo archivo para centralizar llamadas)
 export const registroCalificadoService = {
     getAll: () => request('/registro_calificado/registro_calificado/listar'),
+    create: (data) => request('/registro_calificado/registro_calificado/crear', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data) 
+    }),
+    createBulk: (dataArray) => request('/registro_calificado/registro_calificado/crear-multiples', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataArray) 
+    }),
+    uploadExcel: (file) => {
+        const fd = new FormData();
+        fd.append('file', file);
+        return request('/registro_calificado/registro_calificado/upload-excel', { 
+            method: 'POST', 
+            body: fd 
+        });
+    }
 };
 
 
