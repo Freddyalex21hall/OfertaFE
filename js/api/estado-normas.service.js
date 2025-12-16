@@ -1,6 +1,6 @@
 import { request } from './apiClient.js';
 
-const API_BASE_URL = 'https://oferta-production-44e9.up.railway.app';
+const API_BASE_URL = 'https://oferta-production-44e9.up.railway.app/cargar_archivos/cargar-archivos';
 
 export const estadoNormasService = {
     /**
