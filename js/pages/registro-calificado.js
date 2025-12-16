@@ -47,33 +47,10 @@ function canonicalize(normKey) {
 }
 
 
-// ===== CARGAR DATOS DESDE LOCALSTORAGE AL INICIO =====
-function loadDataFromMemory() {
-    try {
-        const dataStr = localStorage.getItem('registrosCalificados');
-        if (dataStr) {
-            return JSON.parse(dataStr);
-        }
-    } catch (e) {
-        console.error('Error al cargar datos:', e);
-    }
-    return [];
-}
-
-// ===== GUARDAR DATOS EN LOCALSTORAGE =====
-function saveDataToMemory() {
-    try {
-        const dataStr = JSON.stringify(allData);
-        localStorage.setItem('registrosCalificados', dataStr);
-        localStorage.setItem('registrosCalificadosLastUpdate', new Date().toISOString());
-    } catch (e) {
-        console.error('Error al guardar datos:', e);
-    }
-}
-
 // ===== INICIALIZAR DATOS =====
-allData = loadDataFromMemory();
-filteredData = [...allData];
+// Los datos se cargarán desde la API al inicio
+allData = [];
+filteredData = [];
 
 // ===== ELEMENTOS DEL DOM =====
 const uploadZone = document.getElementById('uploadZone');
@@ -121,65 +98,68 @@ fileInput.addEventListener('change', (e) => {
 });
 
 // ===== PROCESAR ARCHIVO EXCEL =====
-function processFile(file) {
-        const reader = new FileReader();
-    reader.onload = (e) => {
+async function processFile(file) {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
         try {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '', raw: false });
-                    if (!jsonData || jsonData.length === 0) {
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '', raw: false });
+            
+            if (!jsonData || jsonData.length === 0) {
                 alert('El archivo no contiene datos válidos');
                 return;
             }
-                    // Mapear columnas del archivo a los encabezados del HTML
-                    const HEADERS = getHEADERS();
-                    // Construir conjunto de headers del archivo (unión de claves presentes)
-                    const fileHeaderSet = new Set();
-                    jsonData.slice(0, 20).forEach(row => Object.keys(row).forEach(k => fileHeaderSet.add(k))); // primeras 20 filas bastan
-                    const fileHeaders = Array.from(fileHeaderSet);
-                    // Mapa: encabezado HTML -> header del archivo que mejor coincide
-                    const mapHtmlToFile = new Map();
-                    const normalizedFileMap = new Map(); // norm -> original
-                    fileHeaders.forEach(h => {
-                        const norm = canonicalize(normalize(h));
-                        if (!normalizedFileMap.has(norm)) normalizedFileMap.set(norm, h);
-                    });
-                    HEADERS.forEach(h => {
-                        const normH = canonicalize(normalize(h));
-                        if (normalizedFileMap.has(normH)) {
-                            mapHtmlToFile.set(h, normalizedFileMap.get(normH));
-                        } else {
-                            // intentar coincidencia por inclusión parcial
-                            const candidate = fileHeaders.find(fh => normalize(fh).includes(normH) || normH.includes(normalize(fh)));
-                            if (candidate) mapHtmlToFile.set(h, candidate);
-                        }
-                    });
-
-                    // Transformar filas del archivo a objetos con solo HEADERS del HTML
-                            const transformed = jsonData.map(row => {
-                        const obj = {};
-                        HEADERS.forEach(h => {
-                            const sourceKey = mapHtmlToFile.get(h);
-                                    let val = sourceKey ? (row[sourceKey] ?? '') : '';
-                                    // Normalizar fechas para columnas clave
-                                    if (['FECHA DE RESOLUCIÓN','Fecha de vencimiento','FECHA RADICADO'].includes(h)) {
-                                        val = normalizeDate(val);
-                                    }
-                                    obj[h] = val;
-                        });
-                        return obj;
-                    });
-
-                    // Agregar datos evitando duplicados
-                    const result = addDataWithoutDuplicates(transformed, HEADERS);
-            currentPage = 1;
-            saveDataToMemory();
-                          populateFilters();
-            renderTable();
-            updateStats();
+            
+            // Mapear columnas del archivo a los encabezados del HTML
+            const HEADERS = getHEADERS();
+            
+            // Construir conjunto de headers del archivo
+            const fileHeaderSet = new Set();
+            jsonData.slice(0, 20).forEach(row => Object.keys(row).forEach(k => fileHeaderSet.add(k)));
+            const fileHeaders = Array.from(fileHeaderSet);
+            
+            // Mapa: encabezado HTML -> header del archivo que mejor coincide
+            const mapHtmlToFile = new Map();
+            const normalizedFileMap = new Map();
+            
+            fileHeaders.forEach(h => {
+                const norm = canonicalize(normalize(h));
+                if (!normalizedFileMap.has(norm)) normalizedFileMap.set(norm, h);
+            });
+            
+            HEADERS.forEach(h => {
+                const normH = canonicalize(normalize(h));
+                if (normalizedFileMap.has(normH)) {
+                    mapHtmlToFile.set(h, normalizedFileMap.get(normH));
+                } else {
+                    const candidate = fileHeaders.find(fh => normalize(fh).includes(normH) || normH.includes(normalize(fh)));
+                    if (candidate) mapHtmlToFile.set(h, candidate);
+                }
+            });
+            
+            // Transformar filas del archivo a objetos con solo HEADERS del HTML
+            const transformed = jsonData.map(row => {
+                const obj = {};
+                HEADERS.forEach(h => {
+                    const sourceKey = mapHtmlToFile.get(h);
+                    let val = sourceKey ? (row[sourceKey] ?? '') : '';
+                    // Normalizar fechas
+                    if (['FECHA DE RESOLUCIÓN','Fecha de vencimiento','FECHA RADICADO'].includes(h)) {
+                        val = normalizeDate(val);
+                    }
+                    obj[h] = val;
+                });
+                return obj;
+            });
+            
+            // Verificar duplicados contra los datos actuales (que vienen de la BD)
+            const result = checkDuplicates(transformed, HEADERS);
+            
+            // Mostrar modal con estadísticas
             showSuccessModal(result);
+            
         } catch (error) {
             console.error('Error procesando archivo:', error);
             alert('Error al procesar el archivo Excel. Verifica el formato.');
@@ -188,29 +168,24 @@ function processFile(file) {
     reader.readAsArrayBuffer(file);
 }
 
-// ===== AGREGAR DATOS SIN DUPLICADOS =====
-function addDataWithoutDuplicates(newData, HEADERS = getHEADERS()) {
+// ===== VERIFICAR DUPLICADOS =====
+function checkDuplicates(newData, HEADERS = getHEADERS()) {
     let addedCount = 0;
     let duplicateCount = 0;
     const totalInFile = newData.length;
 
     newData.forEach(newRow => {
-        // Verificar si el registro ya existe (todas las columnas iguales)
+        // Verificar si el registro ya existe en allData (que viene de la BD)
         const isDuplicate = allData.some(existingRow => {
             return HEADERS.every(h => (existingRow[h] || '') === (newRow[h] || ''));
         });
+        
         if (isDuplicate) {
             duplicateCount++;
         } else {
-            // Solo guardar los campos definidos en HEADERS
-            const cleanRow = {};
-            HEADERS.forEach(h => { cleanRow[h] = newRow[h] || ''; });
-            allData.push(cleanRow);
             addedCount++;
         }
     });
-
-    filteredData = [...allData];
 
     return {
         totalInFile,
@@ -547,8 +522,6 @@ if (clearAllBtn) {
             allData = [];
             filteredData = [];
             currentPage = 1;
-            localStorage.removeItem('registrosCalificados');
-            localStorage.removeItem('registrosCalificadosLastUpdate');
             renderTable();
             updateStats();
             alert('✓ Todos los datos han sido borrados');
@@ -575,37 +548,35 @@ function extractApiArray(payload) {
 // ===== CARGAR DESDE BACKEND =====
 async function fetchRegistrosCalificados() {
     try {
+        console.log('Cargando datos desde la API...');
         const res = await registroCalificadoService.getAll();
         const data = extractApiArray(res);
         if (!Array.isArray(data) || data.length === 0) {
             console.warn('Respuesta sin registros o con formato no esperado', res);
-            return;
+            allData = [];
+            filteredData = [];
+        } else {
+            allData = mapApiDataToTable(data);
+            filteredData = [...allData];
+            console.log(`✓ ${allData.length} registros cargados desde la API`);
         }
-        allData = mapApiDataToTable(data);
-        filteredData = [...allData];
         currentPage = 1;
-        saveDataToMemory();
         populateFilters();
         renderTable();
         updateStats();
     } catch (error) {
         console.error('Error cargando registros calificados desde API:', error);
+        allData = [];
+        filteredData = [];
+        renderTable();
+        updateStats();
     }
 }
 
 // ===== RENDER INICIAL =====
 document.addEventListener('DOMContentLoaded', async () => {
-    // Migrar posibles registros antiguos guardados como arrays a objetos con headers actuales
-    const HEADERS = getHEADERS();
-    if (Array.isArray(allData) && allData.length && Array.isArray(allData[0])) {
-        allData = allData.map(arr => {
-            const obj = {};
-            HEADERS.forEach((h, i) => obj[h] = arr[i] ?? '');
-            return obj;
-        });
-        saveDataToMemory();
-        filteredData = [...allData];
-    }
+    // Cargar datos desde la API cada vez que se carga la página
+    console.log('Página cargada. Iniciando carga de datos desde la API...');
     renderTable();
     updateStats();
     await fetchRegistrosCalificados();
@@ -616,12 +587,19 @@ function populateFilters() {
     try {
         const tipos = new Set();
         const radicados = new Set();
-        const modalidades = new Set(['PRESENCIAL', 'VIRTUAL']);
+        const modalidades = new Set();
 
+        // Poblar valores reales desde la base de datos
         allData.forEach(row => {
-            if (row['TIPO DE TRAMITE']) tipos.add(row['TIPO DE TRAMITE']);
-            if (row['FECHA RADICADO']) radicados.add(row['FECHA RADICADO']);
+            if (row['TIPO DE TRAMITE']) tipos.add(String(row['TIPO DE TRAMITE']).trim());
+            if (row['FECHA RADICADO']) radicados.add(String(row['FECHA RADICADO']).trim());
             if (row['MODALIDAD']) modalidades.add(String(row['MODALIDAD']).toUpperCase().trim());
+        });
+
+        console.log('Filtros poblados:', {
+            tipos: Array.from(tipos),
+            radicados: Array.from(radicados),
+            modalidades: Array.from(modalidades)
         });
 
         const fill = (selectEl, values) => {
