@@ -260,10 +260,23 @@ function mapApiDataToTable(apiRows = []) {
             FECHA_RADICADO: normalizeDate(row.fecha_radicado ?? ''),
             NUMERO_RESOLUCION: row.numero_resolucion ?? row.num_resolucion ?? '',
             FECHA_RESOLUCION: normalizeDate(row.fecha_resolucion ?? ''),
+            RESUELVE: row.resuelve ?? '',
             SNIES: row.snies ?? row.codigo_snies ?? row.cod_programa ?? '',
             FECHA_VENCIMIENTO: normalizeDate(row.fecha_vencimiento ?? ''),
+            VIGENCIA_RC: row.vigencia_rc ?? '',
             CODIGO_PROGRAMA: row.codigo_programa ?? row.cod_programa ?? '',
-            MODALIDAD: row.modalidad ?? row.modalidad_formacion ?? ''
+            NOMBRE_PROGRAMA: row.nombre_programa ?? row.programa ?? '',
+            NIVEL_FORMACION: row.nivel_formacion ?? row.nivel ?? '',
+            RED_CONOCIMIENTO: row.red_conocimiento ?? row.red ?? '',
+            MODALIDAD: row.modalidad ?? row.modalidad_formacion ?? '',
+            CENTRO_FORMACION: row.centro_formacion ?? row.centro ?? '',
+            NOMBRE_SEDE: row.nombre_sede ?? row.sede ?? '',
+            TIPO_SEDE: row.tipo_sede ?? '',
+            MUNICIPIO: row.municipio ?? '',
+            LUGAR_DESARROLLO: row.lugar_desarrollo ?? '',
+            REGIONAL: row.regional ?? '',
+            NOMBRE_REGIONAL: row.nombre_regional ?? '',
+            CLASIFICACION_TRAMITE: row.clasificacion_tramite ?? ''
         };
 
         const mapped = {};
@@ -391,13 +404,18 @@ function renderTable() {
         tr.innerHTML = HEADERS.map(h => `<td>${row[h] || ''}</td>`).join('');
         
         // Aplicar color según estado de vigencia
-        const estado = getEstadoVigencia(row[vencCol]);
+        const fechaVenc = row[vencCol];
+        const estado = getEstadoVigencia(fechaVenc);
+        
         if (estado === 'vencido') {
             tr.style.backgroundColor = '#ffcccc'; // Rojo claro
+            tr.classList.add('table-danger');
         } else if (estado === 'por-vencer') {
-            tr.style.backgroundColor = '#fff4cc'; // Amarillo claro
+            tr.style.backgroundColor = '#fff9cc'; // Amarillo claro
+            tr.classList.add('table-warning');
         } else if (estado === 'vigente') {
-            tr.style.backgroundColor = '#ccffcc'; // Verde claro
+            tr.style.backgroundColor = '#d4edda'; // Verde claro
+            tr.classList.add('table-success');
         }
         
         tableBody.appendChild(tr);
@@ -407,10 +425,14 @@ function renderTable() {
 
 // ===== DETERMINAR ESTADO DE VIGENCIA =====
 function getEstadoVigencia(fechaVencimiento) {
-    if (!fechaVencimiento) return null;
+    if (!fechaVencimiento) {
+        return null;
+    }
     
     const fechaVenc = parseYMD(fechaVencimiento);
-    if (!fechaVenc) return null;
+    if (!fechaVenc) {
+        return null;
+    }
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
