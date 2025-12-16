@@ -1,6 +1,8 @@
 // Este archivo tendrá una única función request que se encargará de todo el trabajo estandar: 
 // añadir la URL base, poner el token, y manejar los errores 401. Esto evita repetir código en cada servicio.
 
+console.log('API CLIENT NUEVO CARGADO', API_BASE_URL);
+
 // La única función que necesitamos importar es la de logout.
 // La importamos para usarla en caso de un error 401.
 
