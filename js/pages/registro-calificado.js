@@ -1,5 +1,8 @@
 import { registroCalificadoService } from '../api/panel.service.js';
 
+
+localStorage.clear();
+
 // ===== VARIABLES GLOBALES =====
 let allData = [];
 let filteredData = [];
