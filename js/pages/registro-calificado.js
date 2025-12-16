@@ -47,33 +47,10 @@ function canonicalize(normKey) {
 }
 
 
-// ===== CARGAR DATOS DESDE LOCALSTORAGE AL INICIO =====
-function loadDataFromMemory() {
-    try {
-        const dataStr = localStorage.getItem('registrosCalificados');
-        if (dataStr) {
-            return JSON.parse(dataStr);
-        }
-    } catch (e) {
-        console.error('Error al cargar datos:', e);
-    }
-    return [];
-}
-
-// ===== GUARDAR DATOS EN LOCALSTORAGE =====
-function saveDataToMemory() {
-    try {
-        const dataStr = JSON.stringify(allData);
-        localStorage.setItem('registrosCalificados', dataStr);
-        localStorage.setItem('registrosCalificadosLastUpdate', new Date().toISOString());
-    } catch (e) {
-        console.error('Error al guardar datos:', e);
-    }
-}
-
 // ===== INICIALIZAR DATOS =====
-allData = loadDataFromMemory();
-filteredData = [...allData];
+// Los datos se cargarán desde la API al inicio
+allData = [];
+filteredData = [];
 
 // ===== ELEMENTOS DEL DOM =====
 const uploadZone = document.getElementById('uploadZone');
@@ -175,7 +152,6 @@ function processFile(file) {
                     // Agregar datos evitando duplicados
                     const result = addDataWithoutDuplicates(transformed, HEADERS);
             currentPage = 1;
-            saveDataToMemory();
                           populateFilters();
             renderTable();
             updateStats();
@@ -547,8 +523,6 @@ if (clearAllBtn) {
             allData = [];
             filteredData = [];
             currentPage = 1;
-            localStorage.removeItem('registrosCalificados');
-            localStorage.removeItem('registrosCalificadosLastUpdate');
             renderTable();
             updateStats();
             alert('✓ Todos los datos han sido borrados');
@@ -575,37 +549,35 @@ function extractApiArray(payload) {
 // ===== CARGAR DESDE BACKEND =====
 async function fetchRegistrosCalificados() {
     try {
+        console.log('Cargando datos desde la API...');
         const res = await registroCalificadoService.getAll();
         const data = extractApiArray(res);
         if (!Array.isArray(data) || data.length === 0) {
             console.warn('Respuesta sin registros o con formato no esperado', res);
-            return;
+            allData = [];
+            filteredData = [];
+        } else {
+            allData = mapApiDataToTable(data);
+            filteredData = [...allData];
+            console.log(`✓ ${allData.length} registros cargados desde la API`);
         }
-        allData = mapApiDataToTable(data);
-        filteredData = [...allData];
         currentPage = 1;
-        saveDataToMemory();
         populateFilters();
         renderTable();
         updateStats();
     } catch (error) {
         console.error('Error cargando registros calificados desde API:', error);
+        allData = [];
+        filteredData = [];
+        renderTable();
+        updateStats();
     }
 }
 
 // ===== RENDER INICIAL =====
 document.addEventListener('DOMContentLoaded', async () => {
-    // Migrar posibles registros antiguos guardados como arrays a objetos con headers actuales
-    const HEADERS = getHEADERS();
-    if (Array.isArray(allData) && allData.length && Array.isArray(allData[0])) {
-        allData = allData.map(arr => {
-            const obj = {};
-            HEADERS.forEach((h, i) => obj[h] = arr[i] ?? '');
-            return obj;
-        });
-        saveDataToMemory();
-        filteredData = [...allData];
-    }
+    // Cargar datos desde la API cada vez que se carga la página
+    console.log('Página cargada. Iniciando carga de datos desde la API...');
     renderTable();
     updateStats();
     await fetchRegistrosCalificados();
@@ -616,12 +588,19 @@ function populateFilters() {
     try {
         const tipos = new Set();
         const radicados = new Set();
-        const modalidades = new Set(['PRESENCIAL', 'VIRTUAL']);
+        const modalidades = new Set();
 
+        // Poblar valores reales desde la base de datos
         allData.forEach(row => {
-            if (row['TIPO DE TRAMITE']) tipos.add(row['TIPO DE TRAMITE']);
-            if (row['FECHA RADICADO']) radicados.add(row['FECHA RADICADO']);
+            if (row['TIPO DE TRAMITE']) tipos.add(String(row['TIPO DE TRAMITE']).trim());
+            if (row['FECHA RADICADO']) radicados.add(String(row['FECHA RADICADO']).trim());
             if (row['MODALIDAD']) modalidades.add(String(row['MODALIDAD']).toUpperCase().trim());
+        });
+
+        console.log('Filtros poblados:', {
+            tipos: Array.from(tipos),
+            radicados: Array.from(radicados),
+            modalidades: Array.from(modalidades)
         });
 
         const fill = (selectEl, values) => {
