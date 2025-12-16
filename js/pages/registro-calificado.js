@@ -99,6 +99,11 @@ fileInput.addEventListener('change', (e) => {
 
 // ===== PROCESAR ARCHIVO EXCEL =====
 async function processFile(file) {
+    // Asegurar que los datos actuales desde la API estén cargados
+    if (!allData || allData.length === 0) {
+        try { await fetchRegistrosCalificados(); } catch (_) {}
+    }
+
     const reader = new FileReader();
     reader.onload = async (e) => {
         try {
@@ -106,29 +111,29 @@ async function processFile(file) {
             const workbook = XLSX.read(data, { type: 'array' });
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
             const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '', raw: false });
-            
+
             if (!jsonData || jsonData.length === 0) {
                 alert('El archivo no contiene datos válidos');
                 return;
             }
-            
+
             // Mapear columnas del archivo a los encabezados del HTML
             const HEADERS = getHEADERS();
-            
+
             // Construir conjunto de headers del archivo
             const fileHeaderSet = new Set();
             jsonData.slice(0, 20).forEach(row => Object.keys(row).forEach(k => fileHeaderSet.add(k)));
             const fileHeaders = Array.from(fileHeaderSet);
-            
+
             // Mapa: encabezado HTML -> header del archivo que mejor coincide
             const mapHtmlToFile = new Map();
             const normalizedFileMap = new Map();
-            
+
             fileHeaders.forEach(h => {
                 const norm = canonicalize(normalize(h));
                 if (!normalizedFileMap.has(norm)) normalizedFileMap.set(norm, h);
             });
-            
+
             HEADERS.forEach(h => {
                 const normH = canonicalize(normalize(h));
                 if (normalizedFileMap.has(normH)) {
@@ -138,7 +143,7 @@ async function processFile(file) {
                     if (candidate) mapHtmlToFile.set(h, candidate);
                 }
             });
-            
+
             // Transformar filas del archivo a objetos con solo HEADERS del HTML
             const transformed = jsonData.map(row => {
                 const obj = {};
@@ -153,13 +158,13 @@ async function processFile(file) {
                 });
                 return obj;
             });
-            
+
             // Verificar duplicados contra los datos actuales (que vienen de la BD)
             const result = checkDuplicates(transformed, HEADERS);
-            
+
             // Mostrar modal con estadísticas
             showSuccessModal(result);
-            
+
         } catch (error) {
             console.error('Error procesando archivo:', error);
             alert('Error al procesar el archivo Excel. Verifica el formato.');
@@ -169,21 +174,70 @@ async function processFile(file) {
 }
 
 // ===== VERIFICAR DUPLICADOS =====
+function normalizeKeyValue(val) {
+    if (val === null || val === undefined) return '';
+    let s = String(val).trim();
+    // Normalizar fechas a YYYY/MM/DD si parecen fechas
+    const maybeDate = normalizeDate(s);
+    if (maybeDate && /\d{4}\/[01]\d\/[0-3]\d/.test(maybeDate)) s = maybeDate;
+    return normalize(s); // mayúsculas, sin tildes, espacios compactados
+}
+
+function pickFirst(row, candidates) {
+    for (const key of candidates) {
+        if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
+            return row[key];
+        }
+    }
+    return '';
+}
+
+function buildRowKey(row) {
+    // Intentar claves robustas presentes en Excel y API
+    const code = normalizeKeyValue(pickFirst(row, [
+        'COD DEL PROGRAMA', 'CODIGO PROGRAMA', 'CÓDIGO PROGRAMA', 'CODIGO DEL PROGRAMA', 'SNIES', 'CÓDIGO SNIES', 'CODIGO SNIES'
+    ]));
+    const nres = normalizeKeyValue(pickFirst(row, [
+        'NUMERO DE RESOLUCION', 'NOMBRE DE RESOLUCIÓN', 'NOMBRE DE RESOLUCION'
+    ]));
+    const fres = normalizeKeyValue(pickFirst(row, [
+        'FECHA DE RESOLUCIÓN', 'FECHA RESOLUCION'
+    ]));
+    // Si no hay suficientes campos, usar combinación con fecha radicado
+    const frad = normalizeKeyValue(pickFirst(row, [
+        'FECHA RADICADO'
+    ]));
+    const modality = normalizeKeyValue(pickFirst(row, [
+        'MODALIDAD'
+    ]));
+
+    // Clave principal: código + número resolución + fecha resolución
+    if (code || nres || fres) {
+        return [code, nres, fres].join('|');
+    }
+    // Alternativa: código + fecha radicado + modalidad
+    if (code || frad) {
+        return [code, frad, modality].join('|');
+    }
+    // Fallback: concatenar todas las columnas conocidas de forma normalizada
+    return Object.keys(row).sort().map(k => `${k}:${normalizeKeyValue(row[k])}`).join('||');
+}
+
 function checkDuplicates(newData, HEADERS = getHEADERS()) {
     let addedCount = 0;
     let duplicateCount = 0;
     const totalInFile = newData.length;
 
+    // Construir set de claves existentes
+    const existingKeys = new Set(allData.map(buildRowKey));
+
     newData.forEach(newRow => {
-        // Verificar si el registro ya existe en allData (que viene de la BD)
-        const isDuplicate = allData.some(existingRow => {
-            return HEADERS.every(h => (existingRow[h] || '') === (newRow[h] || ''));
-        });
-        
-        if (isDuplicate) {
+        const key = buildRowKey(newRow);
+        if (existingKeys.has(key)) {
             duplicateCount++;
         } else {
             addedCount++;
+            existingKeys.add(key);
         }
     });
 
