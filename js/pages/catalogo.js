@@ -80,43 +80,182 @@ function processFile(file) {
     alert('Formato de archivo no soportado. Por favor, suba un Excel (.xlsx o .xls).');
     return;
   }
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    try {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
-      
-      if (!jsonData || jsonData.length === 0) {
-        alert('El archivo no contiene datos válidos');
+
+  // UI: Iniciar tarea de subida
+  const taskId = addUploadTask(file);
+  showLoadingOverlay(true);
+
+  // Subir archivo a la API con progreso
+  catalogoService.uploadExcelCatalogoWithProgress(file, (percent) => {
+    updateUploadProgress(taskId, percent);
+  })
+  .then((response) => {
+    console.log('Respuesta upload:', response);
+    
+    // Procesar respuesta
+    let programas = [];
+    if (Array.isArray(response)) {
+      programas = response;
+    } else if (response.data && Array.isArray(response.data)) {
+      programas = response.data;
+    } else if (response.results && Array.isArray(response.results)) {
+        programas = response.results;
+    } else {
+        // Fallback: intentar leer el archivo localmente si la API no devuelve los datos procesados
+        console.warn('La API no devolvió los datos procesados, leyendo localmente...');
+        readFileLocally(file);
+        completeUploadTask(taskId, true, 'Subido (Procesando local)');
+        showLoadingOverlay(false);
         return;
-      }
+    }
 
-      // Subir archivo a la API
-      try {
-        await catalogoService.uploadExcelCatalogo(file);
-      } catch (error) {
-        console.error('Error al subir a la API:', error);
-        alert('Error al subir el archivo a la API, pero se mostrará localmente');
-      }
-
-      // Detectar duplicados
-      const result = addDataWithoutDuplicates(jsonData);
-      
+    if (programas.length > 0) {
+      allData = programas;
+      filteredData = [...allData];
       saveDataToMemory();
       extractColumns();
       populateFilters();
       renderTable();
       updateStats();
       
-      showSuccessModal(result);
-    } catch (error) {
-      console.error('Error procesando archivo:', error);
-      alert('Error al procesar el archivo Excel. Verifica el formato.');
+      completeUploadTask(taskId, true, 'Completado');
+      alert(`✓ Se cargaron ${programas.length} registros exitosamente.`);
+    } else {
+      completeUploadTask(taskId, true, 'Sin datos nuevos');
+      alert('El archivo se subió pero no se encontraron registros nuevos.');
     }
-  };
-  reader.readAsArrayBuffer(file);
+  })
+  .catch((error) => {
+    console.error('Error al subir:', error);
+    completeUploadTask(taskId, false, error.message || 'Error');
+    alert('Error al subir el archivo: ' + (error.message || 'Error desconocido'));
+  })
+  .finally(() => {
+    showLoadingOverlay(false);
+  });
+}
+
+function readFileLocally(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+            if (jsonData.length > 0) {
+                addDataWithoutDuplicates(jsonData);
+                saveDataToMemory();
+                extractColumns();
+                populateFilters();
+                renderTable();
+                updateStats();
+            }
+        } catch (err) {
+            console.error('Error lectura local:', err);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+// ===== UPLOAD TRAY LOGIC =====
+const loadingOverlay = document.getElementById('loadingOverlay');
+const uploadsTray = document.getElementById('uploadsTray');
+const btnUploads = document.getElementById('btnUploads');
+const uploadsPanel = document.getElementById('uploadsPanel');
+const uploadsList = document.getElementById('uploadsList');
+const uploadAlert = document.getElementById('uploadAlert');
+
+let activeUploads = new Map(); // id -> { name, progress, status, message }
+
+if (btnUploads) {
+    btnUploads.addEventListener('click', () => {
+        if (uploadsPanel) uploadsPanel.style.display = uploadsPanel.style.display === 'none' ? 'block' : 'none';
+    });
+}
+
+function showLoadingOverlay(show) {
+    if (loadingOverlay) loadingOverlay.style.display = show ? 'block' : 'none';
+}
+
+function addUploadTask(file) {
+    const id = Date.now() + Math.random().toString(36).substr(2, 9);
+    activeUploads.set(id, { name: file.name, progress: 0, status: 'pending' });
+    renderUploadsList();
+    if (uploadsPanel && uploadsPanel.style.display === 'none') {
+        uploadsPanel.style.display = 'block';
+    }
+    return id;
+}
+
+function updateUploadProgress(id, percent) {
+    const task = activeUploads.get(id);
+    if (task) {
+        task.progress = percent;
+        task.status = 'uploading';
+        renderUploadsList();
+    }
+}
+
+function completeUploadTask(id, success, message) {
+    const task = activeUploads.get(id);
+    if (task) {
+        task.progress = 100;
+        task.status = success ? 'success' : 'error';
+        task.message = message;
+        renderUploadsList();
+        
+        if (uploadAlert) {
+            uploadAlert.className = `alert alert-${success ? 'success' : 'danger'} py-1 px-2`;
+            uploadAlert.textContent = success ? 'Carga completada' : 'Error en la carga';
+            uploadAlert.style.display = 'block';
+            setTimeout(() => { uploadAlert.style.display = 'none'; }, 3000);
+        }
+    }
+}
+
+function renderUploadsList() {
+    if (!uploadsList) return;
+    uploadsList.innerHTML = '';
+    
+    if (activeUploads.size === 0) {
+        uploadsList.innerHTML = '<div class="list-group-item text-muted small">No hay subidas en curso</div>';
+        return;
+    }
+
+    // Convert map to array and reverse to show newest first
+    const tasks = Array.from(activeUploads.entries()).reverse();
+
+    tasks.forEach(([id, task]) => {
+        const item = document.createElement('div');
+        item.className = 'list-group-item p-2';
+        
+        let statusIcon = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
+        let statusClass = 'text-primary';
+        
+        if (task.status === 'success') {
+            statusIcon = '<i class="fas fa-check-circle text-success"></i>';
+            statusClass = 'text-success';
+        } else if (task.status === 'error') {
+            statusIcon = '<i class="fas fa-times-circle text-danger"></i>';
+            statusClass = 'text-danger';
+        }
+
+        item.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <div class="text-truncate small fw-bold" style="max-width: 180px;" title="${task.name}">${task.name}</div>
+                ${statusIcon}
+            </div>
+            <div class="progress" style="height: 4px;">
+                <div class="progress-bar ${task.status === 'error' ? 'bg-danger' : 'bg-primary'}" role="progressbar" style="width: ${task.progress}%"></div>
+            </div>
+            <div class="d-flex justify-content-between mt-1">
+                <small class="${statusClass}" style="font-size: 0.75rem;">${task.status === 'uploading' ? task.progress + '%' : (task.status === 'success' ? 'Completado' : 'Error')}</small>
+                ${task.message ? `<small class="text-muted ms-2 text-truncate" style="max-width: 100px; font-size: 0.75rem;" title="${task.message}">${task.message}</small>` : ''}
+            </div>
+        `;
+        uploadsList.appendChild(item);
+    });
 }
 
 // ===== AGREGAR DATOS SIN DUPLICADOS =====

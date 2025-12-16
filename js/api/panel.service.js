@@ -58,6 +58,38 @@ export const registroCalificadoService = {
             method: 'POST', 
             body: fd 
         });
+    },
+    uploadExcelWithProgress: (file, onProgress) => {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            const url = 'https://oferta-production-44e9.up.railway.app/Registro-Calificado/upload-excel-registro-calificado/';
+            const token = localStorage.getItem('access_token');
+            xhr.open('POST', url);
+            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable && typeof onProgress === 'function') {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    onProgress(percent, e.loaded, e.total);
+                }
+            };
+            xhr.onreadystatechange = () => {
+                if (xhr.readyState === 4) {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try { resolve(JSON.parse(xhr.responseText)); } catch { resolve({}); }
+                    } else {
+                        let msg = xhr.statusText || 'Error al subir archivo';
+                        try {
+                            const j = JSON.parse(xhr.responseText);
+                            msg = j.detail || j.message || msg;
+                        } catch {}
+                        reject(new Error(msg));
+                    }
+                }
+            };
+            const fd = new FormData();
+            fd.append('file', file);
+            xhr.send(fd);
+        });
     }
 };
 

@@ -105,6 +105,10 @@ async function processFile(file) {
         return;
     }
 
+    // UI: Iniciar tarea
+    const taskId = addUploadTask(file);
+    showLoadingOverlay(true);
+
     // Cargar datos actuales desde API antes de validar duplicados locales
     if (!allData || allData.length === 0) {
         try { await fetchRegistrosCalificados(); } catch (_) {}
@@ -112,86 +116,129 @@ async function processFile(file) {
 
     const prevTotal = allData.length;
 
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '', raw: false });
+    // Subir con progreso
+    registroCalificadoService.uploadExcelWithProgress(file, (percent) => {
+        updateUploadProgress(taskId, percent);
+    })
+    .then(async (response) => {
+        console.log('Respuesta upload:', response);
+        // Recargar datos desde la API para reflejar lo guardado en BD
+        await fetchRegistrosCalificados();
+        
+        completeUploadTask(taskId, true, 'Completado');
+        
+        // Intentar mostrar estadísticas si están disponibles
+        const stats = deriveStatsFromBackend(response);
+        const modalResult = buildModalResult({
+            backendStats: stats,
+            localResult: {}, // No calculamos localmente para simplificar
+            processed: 0,
+            prevTotal,
+            newTotal: allData.length
+        });
+        showSuccessModal(modalResult);
+    })
+    .catch((error) => {
+        console.error('Error al subir:', error);
+        completeUploadTask(taskId, false, error.message || 'Error');
+        alert('Error al subir el archivo: ' + (error.message || 'Error desconocido'));
+    })
+    .finally(() => {
+        showLoadingOverlay(false);
+    });
+}
 
-            if (!jsonData || jsonData.length === 0) {
-                alert('El archivo no contiene datos válidos');
-                return;
-            }
+// ===== UPLOAD TRAY LOGIC =====
+const loadingOverlay = document.getElementById('loadingOverlay');
+const uploadsTray = document.getElementById('uploadsTray');
+const btnUploads = document.getElementById('btnUploads');
+const uploadsPanel = document.getElementById('uploadsPanel');
+const uploadsList = document.getElementById('uploadsList');
+const uploadAlert = document.getElementById('uploadAlert');
 
-            // Mapear columnas del archivo a los encabezados del HTML
-            const HEADERS = getHEADERS();
+let activeUploads = new Map();
 
-            // Construir conjunto de headers del archivo
-            const fileHeaderSet = new Set();
-            jsonData.slice(0, 20).forEach(row => Object.keys(row).forEach(k => fileHeaderSet.add(k)));
-            const fileHeaders = Array.from(fileHeaderSet);
+if (btnUploads) {
+    btnUploads.addEventListener('click', () => {
+        if (uploadsPanel) uploadsPanel.style.display = uploadsPanel.style.display === 'none' ? 'block' : 'none';
+    });
+}
 
-            // Mapa: encabezado HTML -> header del archivo que mejor coincide
-            const mapHtmlToFile = new Map();
-            const normalizedFileMap = new Map();
+function showLoadingOverlay(show) {
+    if (loadingOverlay) loadingOverlay.style.display = show ? 'block' : 'none';
+}
 
-            fileHeaders.forEach(h => {
-                const norm = canonicalize(normalize(h));
-                if (!normalizedFileMap.has(norm)) normalizedFileMap.set(norm, h);
-            });
+function addUploadTask(file) {
+    const id = Date.now() + Math.random().toString(36).substr(2, 9);
+    activeUploads.set(id, { name: file.name, progress: 0, status: 'pending' });
+    renderUploadsList();
+    if (uploadsPanel && uploadsPanel.style.display === 'none') {
+        uploadsPanel.style.display = 'block';
+    }
+    return id;
+}
 
-            HEADERS.forEach(h => {
-                const normH = canonicalize(normalize(h));
-                if (normalizedFileMap.has(normH)) {
-                    mapHtmlToFile.set(h, normalizedFileMap.get(normH));
-                } else {
-                    const candidate = fileHeaders.find(fh => normalize(fh).includes(normH) || normH.includes(normalize(fh)));
-                    if (candidate) mapHtmlToFile.set(h, candidate);
-                }
-            });
+function updateUploadProgress(id, percent) {
+    const task = activeUploads.get(id);
+    if (task) {
+        task.progress = percent;
+        task.status = 'uploading';
+        renderUploadsList();
+    }
+}
 
-            // Transformar filas del archivo a objetos con solo HEADERS del HTML
-            const transformed = jsonData.map(row => {
-                const obj = {};
-                HEADERS.forEach(h => {
-                    const sourceKey = mapHtmlToFile.get(h);
-                    let val = sourceKey ? (row[sourceKey] ?? '') : '';
-                    if (['FECHA DE RESOLUCIÓN','Fecha de vencimiento','FECHA RADICADO'].includes(h)) {
-                        val = normalizeDate(val);
-                    }
-                    obj[h] = val;
-                });
-                return obj;
-            });
-
-            // Resultado local preliminar (por si el backend no devuelve métricas)
-            const localResult = checkDuplicates(transformed, HEADERS);
-
-            // Subir al backend para que guarde en BD y devuelva métricas reales
-            const backendUpload = await uploadFileToBackend(file);
-
-            // Recargar datos desde la API para reflejar lo guardado en BD
-            await fetchRegistrosCalificados();
-
-            const modalResult = buildModalResult({
-                backendStats: backendUpload?.stats,
-                localResult,
-                processed: transformed.length,
-                prevTotal,
-                newTotal: allData.length
-            });
-
-            showSuccessModal(modalResult);
-
-        } catch (error) {
-            console.error('Error procesando archivo:', error);
-            const detail = error?.message ? ` Detalle: ${error.message}` : '';
-            alert(`Error al procesar o subir el archivo Excel.${detail}`);
+function completeUploadTask(id, success, message) {
+    const task = activeUploads.get(id);
+    if (task) {
+        task.progress = 100;
+        task.status = success ? 'success' : 'error';
+        task.message = message;
+        renderUploadsList();
+        
+        if (uploadAlert) {
+            uploadAlert.className = `alert alert-${success ? 'success' : 'danger'} py-1 px-2`;
+            uploadAlert.textContent = success ? 'Carga completada' : 'Error en la carga';
+            uploadAlert.style.display = 'block';
+            setTimeout(() => { uploadAlert.style.display = 'none'; }, 3000);
         }
-    };
-    reader.readAsArrayBuffer(file);
+    }
+}
+
+function renderUploadsList() {
+    if (!uploadsList) return;
+    uploadsList.innerHTML = '';
+    if (activeUploads.size === 0) {
+        uploadsList.innerHTML = '<div class="list-group-item text-muted small">No hay subidas en curso</div>';
+        return;
+    }
+    const tasks = Array.from(activeUploads.entries()).reverse();
+    tasks.forEach(([id, task]) => {
+        const item = document.createElement('div');
+        item.className = 'list-group-item p-2';
+        let statusIcon = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
+        let statusClass = 'text-primary';
+        if (task.status === 'success') {
+            statusIcon = '<i class="fas fa-check-circle text-success"></i>';
+            statusClass = 'text-success';
+        } else if (task.status === 'error') {
+            statusIcon = '<i class="fas fa-times-circle text-danger"></i>';
+            statusClass = 'text-danger';
+        }
+        item.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <div class="text-truncate small fw-bold" style="max-width: 180px;" title="${task.name}">${task.name}</div>
+                ${statusIcon}
+            </div>
+            <div class="progress" style="height: 4px;">
+                <div class="progress-bar ${task.status === 'error' ? 'bg-danger' : 'bg-primary'}" role="progressbar" style="width: ${task.progress}%"></div>
+            </div>
+            <div class="d-flex justify-content-between mt-1">
+                <small class="${statusClass}" style="font-size: 0.75rem;">${task.status === 'uploading' ? task.progress + '%' : (task.status === 'success' ? 'Completado' : 'Error')}</small>
+                ${task.message ? `<small class="text-muted ms-2 text-truncate" style="max-width: 100px; font-size: 0.75rem;" title="${task.message}">${task.message}</small>` : ''}
+            </div>
+        `;
+        uploadsList.appendChild(item);
+    });
 }
 
 // ===== VERIFICAR DUPLICADOS =====
