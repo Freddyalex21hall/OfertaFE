@@ -187,7 +187,8 @@ async function processFile(file) {
 
         } catch (error) {
             console.error('Error procesando archivo:', error);
-            alert('Error al procesar o subir el archivo Excel. Verifica el formato o intenta nuevamente.');
+            const detail = error?.message ? ` Detalle: ${error.message}` : '';
+            alert(`Error al procesar o subir el archivo Excel.${detail}`);
         }
     };
     reader.readAsArrayBuffer(file);

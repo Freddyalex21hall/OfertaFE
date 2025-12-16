@@ -7,6 +7,19 @@
 import { logout } from './user.service.js';
 const API_BASE_URL = 'https://oferta-production-44e9.up.railway.app';
 
+async function readBody(response) {
+    if (response.status === 204) return {};
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+    const text = await response.text();
+
+    // Priorizar JSON si el servidor lo indica o si es parseable
+    if (contentType.includes('application/json')) {
+        try { return JSON.parse(text); } catch (_) { /* fall back to other strategies */ }
+    }
+    try { return JSON.parse(text); } catch (_) { /* ignore */ }
+    return text;
+}
+
 /**
  * Cliente central para realizar todas las peticiones a la API.
  * @param {string} endpoint - El endpoint al que se llamará (ej. '/users/get-by-centro').
@@ -48,12 +61,15 @@ export async function request(endpoint, options = {}) {
         }
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ detail: 'Ocurrió un error en la petición.' }));
-            throw new Error(errorData.detail);
+            const errorData = await readBody(response);
+            const detail = typeof errorData === 'string'
+                ? errorData
+                : (errorData?.detail || errorData?.message || 'Ocurrió un error en la petición.');
+            throw new Error(detail);
         }
         
-        // Si la respuesta no tiene contenido (ej. status 204), devolvemos un objeto vacío.
-        return response.status === 204 ? {} : await response.json();
+        // Devuelve el cuerpo parseado (JSON o texto) o un objeto vacío si no hay contenido.
+        return await readBody(response);
 
     } catch (error) {
         console.error(`Error en la petición a ${endpoint}:`, error);
