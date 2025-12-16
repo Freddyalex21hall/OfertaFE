@@ -143,6 +143,69 @@ fileInput.addEventListener('change', (e) => {
   if (file) processFile(file);
 });
 
+// ===== SUBIDAS EN SEGUNDO PLANO =====
+const uploadsPanel = document.getElementById('uploadsPanel');
+const uploadsList = document.getElementById('uploadsList');
+const btnUploads = document.getElementById('btnUploads');
+btnUploads?.addEventListener('click', () => {
+  if (!uploadsPanel) return;
+  uploadsPanel.style.display = uploadsPanel.style.display === 'none' ? 'block' : 'none';
+});
+let uploads = [];
+function renderUploads(){
+  if (!uploadsList) return;
+  if (uploads.length === 0){
+    uploadsList.innerHTML = '<div class="list-group-item text-muted small">No hay subidas en curso</div>';
+    return;
+  }
+  uploadsList.innerHTML = uploads.map((u,i) => `
+    <div class="list-group-item">
+      <div class="d-flex justify-content-between"><span class="small">${u.name}</span><span class="small">${Math.round((u.size||0)/1024)} KB</span></div>
+      <div class="progress mt-1" style="height:6px;">
+        <div class="progress-bar ${u.status==='error'?'bg-danger':(u.status==='completado'?'bg-success':'')}" role="progressbar" style="width:${u.percent||0}%"></div>
+      </div>
+      <div class="d-flex justify-content-between align-items-center mt-1">
+        <div class="small text-muted">${u.status}${u.message? ' - '+u.message:''}</div>
+        ${u.status==='error' ? `<button class="btn btn-sm btn-outline-primary btn-retry-upload" data-idx="${i}">Reintentar</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+function showUploadAlert(type, text){
+  const el = document.getElementById('uploadAlert');
+  if (!el) return;
+  el.className = `alert alert-${type} alert-dismissible fade show py-1 px-2`;
+  el.textContent = text;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+uploadsList?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.btn-retry-upload');
+  if (!btn) return;
+  const idx = parseInt(btn.dataset.idx,10);
+  const item = uploads[idx];
+  if (item && item.file){
+    showUploadAlert('info','Reintentando subida...');
+    addUploadTask(item.file);
+  }
+});
+async function addUploadTask(file){
+  const item = { name:file.name, size:file.size, percent:0, status:'subiendo', message:'', file };
+  uploads.unshift(item);
+  renderUploads();
+  try{
+    await panelService.uploadExcelHistoricoWithProgress(file, (p)=>{ item.percent = p; renderUploads(); });
+    item.status='procesando'; renderUploads();
+    await fetchHistoricoTodos();
+    item.percent = 100;
+    item.status='completado'; item.message='Datos actualizados'; renderUploads();
+    showUploadAlert('success','Archivo subido correctamente');
+  }catch(err){
+    item.status='error'; item.message=err?.message||'Error al subir'; renderUploads();
+    showUploadAlert('danger', item.message);
+  }
+}
+
 // ===== PROCESAR ARCHIVO EXCEL =====
 async function processFile(file) {
   const name = file?.name || '';
@@ -150,7 +213,8 @@ async function processFile(file) {
     alert('Formato de archivo no soportado. Por favor, suba un Excel (.xlsx o .xls).');
     return;
   }
-  showLoading('Preparando archivo...');
+  addUploadTask(file);
+  return;
   const reader = new FileReader();
   reader.onload = async (e) => {
     try {

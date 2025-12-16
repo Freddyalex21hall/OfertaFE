@@ -404,6 +404,27 @@
     </div>
   </div>
 
+  <div id="uploadsTray" style="position:fixed; right:16px; bottom:16px; z-index:1060;">
+    <button class="btn btn-primary btn-sm" id="btnUploads"><i class="fas fa-cloud-upload-alt"></i> Subidas</button>
+    <div id="uploadsPanel" class="card mt-2" style="width:280px; display:none;">
+      <div class="card-header py-2"><strong>Subidas en segundo plano</strong></div>
+      <div class="list-group list-group-flush" id="uploadsList">
+        <div class="list-group-item text-muted small">No hay subidas en curso</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="uploadsTray" style="position:fixed; right:16px; bottom:16px; z-index:1060;">
+    <button class="btn btn-primary btn-sm" id="btnUploads"><i class="fas fa-cloud-upload-alt"></i> Subidas</button>
+    <div id="uploadsPanel" class="card mt-2" style="width:280px; display:none;">
+      <div class="card-header py-2"><strong>Subidas en segundo plano</strong></div>
+      <div class="list-group list-group-flush" id="uploadsList">
+        <div class="list-group-item text-muted small">No hay subidas en curso</div>
+      </div>
+    </div>
+    <div id="uploadAlert" class="alert alert-info py-1 px-2" style="display:none; margin-top:8px;"></div>
+  </div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
   <script type="module" src="../js/pages/historico.js"></script>
