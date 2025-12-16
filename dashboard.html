@@ -10,154 +10,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- <link rel="stylesheet" href="assets/css/style.css">
   <link rel="stylesheet" href="assets/css/styles.min.css"> -->
-  <style>
-    .header-bg {
-      background: linear-gradient(90deg, #28a745, #007bff);
-      color: white;
-      padding: 15px 20px;
-    }
-    .nav-item a {
-      color: white !important;
-      font-weight: 500;
-    }
-    .filter-panel {
-      background: #f8f9fa;
-      border-right: 1px solid #dee2e6;
-      padding: 20px;
-      height: calc(100vh - 150px);
-      overflow-y: auto;
-    }
-    .content-panel {
-      padding: 20px;
-      background: white;
-      height: calc(100vh - 150px);
-      overflow-y: auto;
-    }
-    .btn-tab {
-      background: #0056b3;
-      color: white;
-      border: none;
-      margin-right: 8px;
-      margin-bottom: 8px;
-      font-weight: bold;
-      padding: 8px 16px;
-    }
-    .btn-tab.active {
-      background: #003d7a;
-      box-shadow: 0 0 10px rgba(0,0,0,0.2);
-    }
-    .table th, .table td {
-      vertical-align: middle;
-    }
-    .semaphore {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      margin-right: 8px;
-    }
-    .semaphore-green { background: #28a745; }
-    .semaphore-yellow { background: #ffc107; }
-    .semaphore-red { background: #dc3545; }
-
-    /* Ocultar tablas por defecto */
-    .sub-table {
-      display: none;
-    }
-    .sub-table.active {
-      display: block;
-    }
-
-    .footer-sena {
-  position: relative;
-  /* Fondo múltiple: primero la imagen, luego el degradado */
-  /*background-image: 
-    url('assets/images/sena.jpg'), 
-    linear-gradient(90deg, var(--sena-primary), var(--neutral-500));*/
-  background-color: #dc3545;
-  background-size: cover, cover;          /* Tamaño de cada fondo */
-  background-position: center, center;    /* Posición de cada fondo */
-  background-repeat: no-repeat, no-repeat;/* Evita repetición de ambos */
+  <link rel="stylesheet" href="assets/css/style.css">
   
-  color: var(--sena-accent);
-  overflow: hidden;
-  border-top-left-radius: 40px;
-  border-top-right-radius: 40px;
-  margin-top: 2rem;
-}
-
-.footer-top {
-  position: relative;
-  z-index: 1;
-  max-width: 1200px;
-}
-
-.footer-logo {
-  max-width: 150px;
-}
-
-.footer-title {
-  font-weight: 600;
-  color: #fff;
-  margin-bottom: 0.75rem;
-}
-
-.footer-links a {
-  color: rgba(255, 255, 255, 0.85);
-  text-decoration: none;
-}
-
-.footer-links a:hover {
-  color: #fff;
-  text-decoration: underline;
-}
-
-.contact-info li {
-  margin-bottom: 0.5rem;
-  display: flex;
-  align-items: center;
-}
-
-.social-links a {
-  font-size: 1.4rem;
-  color: var(--sena-accent);
-  margin-right: 10px;
-  transition: color 0.3s ease;
-}
-
-.social-links a:hover {
-  color: #fff;
-}
-
-.footer-bottom {
-  background: rgba(0,0,0,0.15);
-  color: #f5f9ff;
-  z-index: 1;
-  position: relative;
-}
-
-/* ===== HEADER ===== */
-.header-bg {
-  background: linear-gradient(90deg, #28a745, #007bff);
-  color: white;
-  padding: 15px 20px;
-}
-
-.nav-item a {
-  color: white !important;
-  font-weight: 500;
-  text-decoration: none;
-  transition: opacity 0.3s;
-}
-
-.nav-item a:hover {
-  opacity: 0.8;
-}
-
-.nav-item a.active {
-  text-decoration: underline;
-}
-  </style>
   <link rel="stylesheet" href="assets/css/style.css">
   <link rel="shortcut icon" type="image/png" href="assets/images/logos/sena.png" />
 </head>
@@ -246,7 +100,7 @@
           <div class="feature-card">
             <div class="feature-icon"><i class="fas fa-history"></i></div>
             <h5>Histórico</h5>
-            <p class="text-muted">Consulta y filtra el histórico completo de ofertas desde 2019</p>
+            <p class="text-muted">Consulta y filtra el histórico completo de ofertas desde años posteriores</p>
           </div>
         </a>
       </div>
@@ -263,7 +117,7 @@
         <a href="pages/estado_normas.html" class="text-decoration-none">
           <div class="feature-card">
             <div class="feature-icon"><i class="fas fa-check-circle"></i></div>
-            <h5>estado de normas</h5>
+            <h5>Estado de Normas</h5>
             <p class="text-muted">Verifica normativas </p>
           </div>
         </a>
@@ -302,20 +156,30 @@
       <div class="col-md-3 mb-3">
         <h6 class="footer-title">Contacto</h6>
         <ul class="contact-info list-unstyled">
-          <li><i class="bi bi-geo-alt-fill me-2"></i>Calle 57 No. 8 ‐ 69 Bogotá D.C., Colombia</li>
-          <li><i class="bi bi-telephone-fill me-2"></i>+(57) 601 736 60 60</li>
-          <li><i class="bi bi-phone me-2"></i>01 8000 910 270</li>
-          <li><i class="bi bi-clock-fill me-2"></i>Lun-Vie: 7:00‐19:00 ‐ Sáb: 8:00‐13:00</li>
+          <li><i class="fas fa-map-marker-alt me-2"></i>Calle 57 No. 8 ‐ 69 Bogotá D.C., Colombia</li>
+          <li><i class="fas fa-phone me-2"></i>+(57) 601 736 60 60</li>
+          <li><i class="fas fa-mobile-alt me-2"></i>01 8000 910 270</li>
+          <li><i class="fas fa-clock me-2"></i>Lun-Vie: 7:00‐19:00 ‐ Sáb: 8:00‐13:00</li>
         </ul>
       </div>
       <div class="col-md-3 mb-3">
         <h6 class="footer-title">Síguenos</h6>
         <div class="social-links">
-          <a href="#" class="me-2"><i class="bi bi-facebook"></i></a>
-          <a href="#" class="me-2"><i class="bi bi-x"></i></a>
-          <a href="#" class="me-2"><i class="bi bi-instagram"></i></a>
-          <a href="#" class="me-2"><i class="bi bi-youtube"></i></a>
-          <a href="#" class="me-2"><i class="bi bi-linkedin"></i></a>
+          <a href="https://www.facebook.com/SENA.oficial.demo" class="social-btn social-facebook" target="_blank" title="Facebook">
+            <i class="fab fa-facebook-f"></i>
+          </a>
+          <a href="https://x.com/SENA_demo" class="social-btn social-x" target="_blank" title="X (Twitter)">
+            <i class="fa-brands fa-x-twitter"></i>
+          </a>
+          <a href="https://www.instagram.com/sena.demo" class="social-btn social-instagram" target="_blank" title="Instagram">
+            <i class="fab fa-instagram"></i>
+          </a>
+          <a href="https://www.youtube.com/@SENADemoCanal" class="social-btn social-youtube" target="_blank" title="YouTube">
+            <i class="fab fa-youtube"></i>
+          </a>
+          <a href="https://www.linkedin.com/company/sena-demo" class="social-btn social-linkedin" target="_blank" title="LinkedIn">
+            <i class="fab fa-linkedin-in"></i>
+          </a>
         </div>
 
       </div>
