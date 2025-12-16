@@ -99,10 +99,18 @@ fileInput.addEventListener('change', (e) => {
 
 // ===== PROCESAR ARCHIVO EXCEL =====
 async function processFile(file) {
-    // Asegurar que los datos actuales desde la API estén cargados
+    const name = file?.name || '';
+    if (!/\.(xlsx|xls)$/i.test(name)) {
+        alert('Formato de archivo no soportado. Por favor, sube un Excel (.xlsx o .xls).');
+        return;
+    }
+
+    // Cargar datos actuales desde API antes de validar duplicados locales
     if (!allData || allData.length === 0) {
         try { await fetchRegistrosCalificados(); } catch (_) {}
     }
+
+    const prevTotal = allData.length;
 
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -150,7 +158,6 @@ async function processFile(file) {
                 HEADERS.forEach(h => {
                     const sourceKey = mapHtmlToFile.get(h);
                     let val = sourceKey ? (row[sourceKey] ?? '') : '';
-                    // Normalizar fechas
                     if (['FECHA DE RESOLUCIÓN','Fecha de vencimiento','FECHA RADICADO'].includes(h)) {
                         val = normalizeDate(val);
                     }
@@ -159,15 +166,28 @@ async function processFile(file) {
                 return obj;
             });
 
-            // Verificar duplicados contra los datos actuales (que vienen de la BD)
-            const result = checkDuplicates(transformed, HEADERS);
+            // Resultado local preliminar (por si el backend no devuelve métricas)
+            const localResult = checkDuplicates(transformed, HEADERS);
 
-            // Mostrar modal con estadísticas
-            showSuccessModal(result);
+            // Subir al backend para que guarde en BD y devuelva métricas reales
+            const backendUpload = await uploadFileToBackend(file);
+
+            // Recargar datos desde la API para reflejar lo guardado en BD
+            await fetchRegistrosCalificados();
+
+            const modalResult = buildModalResult({
+                backendStats: backendUpload?.stats,
+                localResult,
+                processed: transformed.length,
+                prevTotal,
+                newTotal: allData.length
+            });
+
+            showSuccessModal(modalResult);
 
         } catch (error) {
             console.error('Error procesando archivo:', error);
-            alert('Error al procesar el archivo Excel. Verifica el formato.');
+            alert('Error al procesar o subir el archivo Excel. Verifica el formato o intenta nuevamente.');
         }
     };
     reader.readAsArrayBuffer(file);
@@ -246,6 +266,82 @@ function checkDuplicates(newData, HEADERS = getHEADERS()) {
         addedCount,
         duplicateCount,
         totalInSystem: allData.length
+    };
+}
+
+// ===== Helpers para interpretar métricas del backend y fusionarlas con conteos locales =====
+function toNumber(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+}
+
+function firstNumber(candidates = []) {
+    for (const c of candidates) {
+        const num = toNumber(c);
+        if (num !== null) return num;
+    }
+    return null;
+}
+
+function deriveStatsFromBackend(payload) {
+    const stats = { addedCount: null, duplicateCount: null, totalInSystem: null, totalInFile: null };
+    const sources = [payload, payload?.data, payload?.result, payload?.payload];
+
+    const pick = (src, keys) => {
+        for (const k of keys) {
+            const num = toNumber(src?.[k]);
+            if (num !== null) return num;
+        }
+        return null;
+    };
+
+    sources.forEach(src => {
+        if (!src || typeof src !== 'object') return;
+        if (stats.addedCount === null) {
+            stats.addedCount = pick(src, [
+                'nuevos', 'nuevos_registros', 'insertados', 'inserted', 'creados', 'created',
+                'guardados', 'registros_guardados', 'registros_creados', 'added', 'added_count', 'created_count'
+            ]) ?? (Array.isArray(src.insertados) ? src.insertados.length : null) ?? (Array.isArray(src.created) ? src.created.length : null);
+        }
+        if (stats.duplicateCount === null) {
+            stats.duplicateCount = pick(src, [
+                'duplicados', 'duplicates', 'repetidos', 'ya_existian', 'registros_duplicados', 'duplicados_count'
+            ]) ?? (Array.isArray(src.duplicados) ? src.duplicados.length : null) ?? (Array.isArray(src.duplicates) ? src.duplicates.length : null);
+        }
+        if (stats.totalInSystem === null) {
+            stats.totalInSystem = pick(src, [
+                'total', 'total_en_sistema', 'total_en_bd', 'total_registros', 'total_records', 'total_bd'
+            ]);
+        }
+        if (stats.totalInFile === null) {
+            stats.totalInFile = pick(src, [
+                'total_archivo', 'procesados', 'procesados_archivo', 'total_en_archivo', 'total_file', 'count_file', 'filas_leidas'
+            ]);
+        }
+    });
+
+    return stats;
+}
+
+async function uploadFileToBackend(file) {
+    const uploadResponse = await registroCalificadoService.uploadExcel(file);
+    const stats = deriveStatsFromBackend(uploadResponse);
+    return { payload: uploadResponse, stats };
+}
+
+function buildModalResult({ backendStats = {}, localResult = {}, processed = 0, prevTotal = 0, newTotal = allData.length }) {
+    const addedFromDiff = Math.max(newTotal - prevTotal, 0);
+    const addedCount = firstNumber([backendStats.addedCount, addedFromDiff, localResult.addedCount]);
+    const duplicateCount = firstNumber([backendStats.duplicateCount, localResult.duplicateCount, 0]);
+    const totalInFile = firstNumber([backendStats.totalInFile, localResult.totalInFile, processed]);
+    const totalInSystem = firstNumber([backendStats.totalInSystem, newTotal, allData.length]);
+
+    return {
+        totalInFile: totalInFile ?? processed,
+        addedCount: addedCount ?? 0,
+        duplicateCount: duplicateCount ?? 0,
+        totalInSystem: totalInSystem ?? newTotal ?? allData.length
     };
 }
 
