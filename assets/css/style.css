@@ -6,6 +6,75 @@ body {
   background-color: #f5f5f5;
 }
 
+/*ESTE ES EL FOOTER*/
+
+.footer-sena {
+  position: relative;
+  /* Fondo múltiple: primero la imagen, luego el degradado */
+  background-image: 
+    url('../img/FooterModoLight.svg'), 
+    linear-gradient(90deg, var(--sena-primary), var(--neutral-500));
+  background-size: cover, cover;          /* Tamaño de cada fondo */
+  background-position: center, center;    /* Posición de cada fondo */
+  background-repeat: no-repeat, no-repeat;/* Evita repetición de ambos */
+  
+  color: var(--sena-accent);
+  overflow: hidden;
+  border-top-left-radius: 40px;
+  border-top-right-radius: 40px;
+  margin-top: 2rem;
+}
+
+.footer-top {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+}
+
+.footer-logo {
+  max-width: 150px;
+}
+
+.footer-title {
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 0.75rem;
+}
+
+.footer-links a {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+}
+
+.footer-links a:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.contact-info li {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.social-links a {
+  font-size: 1.4rem;
+  color: var(--sena-accent);
+  margin-right: 10px;
+  transition: color 0.3s ease;
+}
+
+.social-links a:hover {
+  color: #fff;
+}
+
+.footer-bottom {
+  background: rgba(0,0,0,0.15);
+  color: #f5f9ff;
+  z-index: 1;
+  position: relative;
+}
+
 /* ===== HEADER ===== */
 .header-bg {
   background: linear-gradient(90deg, #28a745, #007bff);
@@ -27,6 +96,7 @@ body {
 .nav-item a.active {
   text-decoration: underline;
 }
+
 
 /* ===== SUB NAVEGACIÓN ===== */
 .sub-nav {
