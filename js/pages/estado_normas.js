@@ -19,6 +19,8 @@ import { estadoNormasService } from '../api/estado-normas.service.js';
 let allData = [];
 let filteredData = [];
 let currentPage = 1;
+let currentVigentesPage = 1;
+let currentVencidasPage = 1;
 const PAGE_SIZE = 50;
 const MAX_RECORDS = 25000;
 
@@ -449,10 +451,15 @@ function renderVigentesTable() {
 
   if (vigentes.length === 0) {
     vigentesTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay normas vigentes</td></tr>';
+    renderVigentesPagination(0);
     return;
   }
 
-  vigentes.forEach(row => {
+  const start = (currentVigentesPage - 1) * PAGE_SIZE;
+  const end = start + PAGE_SIZE;
+  const pageData = vigentes.slice(start, end);
+
+  pageData.forEach(row => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${wrap(row['RED CONOCIMIENTO'])}</td>
@@ -463,6 +470,39 @@ function renderVigentesTable() {
     `;
     vigentesTableBody.appendChild(tr);
   });
+  
+  renderVigentesPagination(vigentes.length);
+}
+
+function renderVigentesPagination(total) {
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (currentVigentesPage > totalPages) currentVigentesPage = totalPages;
+  
+  const pageInfo = document.getElementById('pageInfoVigentes');
+  if (pageInfo) pageInfo.textContent = `Página ${currentVigentesPage} de ${totalPages}`;
+  
+  const btnPrev = document.getElementById('btnPrevPageVigentes');
+  const btnNext = document.getElementById('btnNextPageVigentes');
+  
+  if (btnPrev) {
+    btnPrev.disabled = currentVigentesPage <= 1;
+    btnPrev.onclick = () => {
+      if (currentVigentesPage > 1) {
+        currentVigentesPage--;
+        renderVigentesTable();
+      }
+    };
+  }
+  
+  if (btnNext) {
+    btnNext.disabled = currentVigentesPage >= totalPages;
+    btnNext.onclick = () => {
+      if (currentVigentesPage < totalPages) {
+        currentVigentesPage++;
+        renderVigentesTable();
+      }
+    };
+  }
 }
 
 // ===== RENDERIZAR TABLA DE NORMAS VENCIDAS =====
@@ -476,10 +516,15 @@ function renderVencidasTable() {
 
   if (vencidas.length === 0) {
     vencidasTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay normas vencidas</td></tr>';
+    renderVencidasPagination(0);
     return;
   }
 
-  vencidas.forEach(row => {
+  const start = (currentVencidasPage - 1) * PAGE_SIZE;
+  const end = start + PAGE_SIZE;
+  const pageData = vencidas.slice(start, end);
+
+  pageData.forEach(row => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${wrap(row['RED CONOCIMIENTO'])}</td>
@@ -490,6 +535,39 @@ function renderVencidasTable() {
     `;
     vencidasTableBody.appendChild(tr);
   });
+  
+  renderVencidasPagination(vencidas.length);
+}
+
+function renderVencidasPagination(total) {
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (currentVencidasPage > totalPages) currentVencidasPage = totalPages;
+  
+  const pageInfo = document.getElementById('pageInfoVencidas');
+  if (pageInfo) pageInfo.textContent = `Página ${currentVencidasPage} de ${totalPages}`;
+  
+  const btnPrev = document.getElementById('btnPrevPageVencidas');
+  const btnNext = document.getElementById('btnNextPageVencidas');
+  
+  if (btnPrev) {
+    btnPrev.disabled = currentVencidasPage <= 1;
+    btnPrev.onclick = () => {
+      if (currentVencidasPage > 1) {
+        currentVencidasPage--;
+        renderVencidasTable();
+      }
+    };
+  }
+  
+  if (btnNext) {
+    btnNext.disabled = currentVencidasPage >= totalPages;
+    btnNext.onclick = () => {
+      if (currentVencidasPage < totalPages) {
+        currentVencidasPage++;
+        renderVencidasTable();
+      }
+    };
+  }
 }
 
 // ==================== SECCIÓN 5: FILTROS Y BÚSQUEDA ====================
@@ -562,6 +640,8 @@ document.getElementById('applyFilters').addEventListener('click', () => {
   });
 
   currentPage = 1;
+  currentVigentesPage = 1;
+  currentVencidasPage = 1;
   renderTable();
   updateStats();
 });
