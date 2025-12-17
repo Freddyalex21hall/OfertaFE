@@ -463,15 +463,11 @@ function renderTable() {
 
 // ===== OBTENER CLASE DE VIGENCIA =====
 function getVigenciaBadge(vigencia) {
-  if (!vigencia) return 'bg-secondary';
-  const vigiLower = vigencia.toLowerCase();
-  if (vigiLower.includes('vigente') || vigiLower.includes('activo') || vigiLower.includes('sí')) {
-    return 'bg-success';
-  }
-  if (vigiLower.includes('vencido') || vigiLower.includes('expirado') || vigiLower.includes('no')) {
-    return 'bg-danger';
-  }
-  return 'bg-warning';
+  const cls = classifyVigencia(vigencia);
+  if (cls === 'vigentes') return 'bg-success';
+  if (cls === 'noVigentes') return 'bg-danger';
+  if (cls === 'noNecesita') return 'bg-warning';
+  return 'bg-secondary';
 }
 
 // ===== RENDERIZAR TABLA DE NORMAS VIGENTES =====
@@ -540,10 +536,7 @@ function renderVigentesPagination(total) {
 function renderVencidasTable() {
   vencidasTableBody.innerHTML = '';
   
-  const vencidas = filteredData.filter(row => {
-    const vigencia = row['Vigencia']?.toLowerCase() || '';
-    return vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no');
-  });
+  const vencidas = filteredData.filter(row => classifyVigencia(row['Vigencia']) === 'noVigentes');
 
   if (vencidas.length === 0) {
     vencidasTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay normas vencidas</td></tr>';
@@ -846,32 +839,20 @@ if (btnStats) {
 // ===== CALCULAR ESTADÍSTICAS =====
 function calculateStats() {
   const totalNormas = filteredData.length;
-  
-  const vigentes = filteredData.filter(row => {
-    const vigencia = row['Vigencia']?.toLowerCase() || '';
-    return vigencia.includes('vigente') || vigencia.includes('activo') || vigencia.includes('sí');
-  });
-  
-  const vencidas = filteredData.filter(row => {
-    const vigencia = row['Vigencia']?.toLowerCase() || '';
-    return vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no');
-  });
 
-  const totalVigentes = vigentes.length;
-  const totalVencidas = vencidas.length;
+  let totalVigentes = 0;
+  let totalVencidas = 0; // aquí tratamos "noVigentes" como vencidas para el resumen
 
   const redes = {};
   filteredData.forEach(row => {
+    const cat = classifyVigencia(row['Vigencia']);
+    if (cat === 'vigentes') totalVigentes++;
+    else if (cat === 'noVigentes') totalVencidas++;
+
     const red = row['RED CONOCIMIENTO'] || 'Sin Red';
-    if (!redes[red]) {
-      redes[red] = { vigentes: 0, vencidas: 0 };
-    }
-    const vigencia = row['Vigencia']?.toLowerCase() || '';
-    if (vigencia.includes('vigente') || vigencia.includes('activo') || vigencia.includes('sí')) {
-      redes[red].vigentes++;
-    } else if (vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no')) {
-      redes[red].vencidas++;
-    }
+    if (!redes[red]) redes[red] = { vigentes: 0, vencidas: 0 };
+    if (cat === 'vigentes') redes[red].vigentes++;
+    else if (cat === 'noVigentes') redes[red].vencidas++;
   });
 
   const porRed = Object.keys(redes).map(red => ({
@@ -1238,19 +1219,11 @@ function imprimirGraficaTipoNormaVigencia(data) {
     
     (Array.isArray(data) ? data : []).forEach(r => {
       const tipo = r['Tipo de Norma'] || 'Sin Tipo';
-      const vigencia = r['Vigencia']?.toLowerCase() || '';
-      
-      if (!tipos[tipo]) {
-        tipos[tipo] = { vigentes: 0, noVigentes: 0, total: 0 };
-      }
-      
+      const cat = classifyVigencia(r['Vigencia']);
+      if (!tipos[tipo]) tipos[tipo] = { vigentes: 0, noVigentes: 0, total: 0 };
       tipos[tipo].total++;
-      
-      if (vigencia.includes('vigente') || vigencia.includes('activo') || vigencia.includes('sí')) {
-        tipos[tipo].vigentes++;
-      } else if (vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no')) {
-        tipos[tipo].noVigentes++;
-      }
+      if (cat === 'vigentes') tipos[tipo].vigentes++;
+      else tipos[tipo].noVigentes++;
     });
     
     const entries = Object.entries(tipos).sort((a, b) => b[1].total - a[1].total);
