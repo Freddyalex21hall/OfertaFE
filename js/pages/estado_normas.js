@@ -944,12 +944,7 @@ document.getElementById('inputPageNumber')?.addEventListener('keydown', (e) => {
 
 // ==================== SECCIÓN 6: GRÁFICAS Y ESTADÍSTICAS ====================
 
-<<<<<<< HEAD
 // ===== GRÁFICA CIRCULAR: VIGENTES | NO VIGENTES | NO NECESITA | NO APLICA =====
-
-=======
->>>>>>> b5b3fe9e4c7def58ed14a26b2f10f809ad50d863
-// ===== GRÁFICA CIRCULAR: VIGENTES vs NO VIGENTES =====
 
 function imprimirGraficaTipoNorma(data){
   // Contar normas vigentes, no vigentes y no especificadas
@@ -969,11 +964,6 @@ function imprimirGraficaTipoNorma(data){
   });
   
   // Siempre mostrar las 4 categorías en el orden fijo
-<<<<<<< HEAD
-=======
-  if (!document.querySelector('#chartTipoNorma')) return;
-
->>>>>>> b5b3fe9e4c7def58ed14a26b2f10f809ad50d863
   const finalSeries = [vigentes, noVigentes, noNecesita, noAplica];
   const finalLabels = [
     `Vigentes (${vigentes})`,
@@ -982,52 +972,6 @@ function imprimirGraficaTipoNorma(data){
     `No Aplica (${noAplica})`
   ];
   const finalColors = ['#28a745', '#dc3545', '#ffc107', '#6c757d'];
-<<<<<<< HEAD
-=======
-
-  let noEspecificadas = 0;
-  
-  (Array.isArray(data) ? data : []).forEach(r => {
-    const vigencia = r['Vigencia']?.toLowerCase() || '';
-    if (vigencia.includes('vigente') || vigencia.includes('activo') || vigencia.includes('sí')) {
-      vigentes++;
-    } else if (vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no')) {
-      noVigentes++;
-    } else if (vigencia.trim()) {
-      noEspecificadas++;
-    }
-  });
-  
-  // Preparar datos para la gráfica
-  const series = [];
-  const labels = [];
-  const colors = [];
-  
-  if (vigentes > 0) {
-    series.push(vigentes);
-    labels.push(`Vigentes (${vigentes})`);
-    colors.push('#28a745');
-  }
-  
-  if (noVigentes > 0) {
-    series.push(noVigentes);
-    labels.push(`No Vigentes (${noVigentes})`);
-    colors.push('#dc3545');
-  }
-  
-  if (noEspecificadas > 0) {
-    series.push(noEspecificadas);
-    labels.push(`No Especificadas (${noEspecificadas})`);
-    colors.push('#6c757d');
-  }
-  
-  // Si no hay datos, mostrar placeholder
-  if (series.length === 0) {
-    const el = document.querySelector('#chartTipoNorma');
-    if (el) el.innerHTML = '<p class="text-center text-muted">Sin datos disponibles</p>';
-    return;
-  }
->>>>>>> b5b3fe9e4c7def58ed14a26b2f10f809ad50d863
   
   const options = {
     series: finalSeries,
@@ -1081,9 +1025,9 @@ function imprimirGraficaTipoNorma(data){
   };
   
   const el = document.querySelector('#chartTipoNorma');
-  if (!document.querySelector('#chartTipoNorma')) return;
-  (document.querySelector('#chartTipoNorma')).innerHTML = '';
-  const chart = new ApexCharts((document.querySelector('#chartTipoNorma')), options);
+  if (!el) return;
+  el.innerHTML = '';
+  const chart = new ApexCharts(el, options);
   chart.render();
 }
 
