@@ -979,25 +979,52 @@ document.getElementById('inputPageNumber')?.addEventListener('keydown', (e) => {
 
 // ==================== SECCIÓN 6: GRÁFICAS Y ESTADÍSTICAS ====================
 
-// ===== GRÁFICA CIRCULAR: VIGENTES vs NO VIGENTES vs NO NECESITA =====
+// ===== GRÁFICA CIRCULAR: VIGENTES vs NO VIGENTES vs NO NECESITA vs NO ESPECIFICADAS =====
 function imprimirGraficaTipoNorma(data){
-  // Contar normas vigentes, no vigentes, no necesita y no especificadas
+  // Contar normas por estado de vigencia
   let vigentes = 0;
   let noVigentes = 0;
   let noNecesita = 0;
   let noEspecificadas = 0;
-  
+
   (Array.isArray(data) ? data : []).forEach(r => {
-    const vigencia = r['Vigencia']?.toLowerCase() || '';
-    if (vigencia.includes('vigente') || vigencia.includes('activo') || vigencia.includes('sí')) {
-      vigentes++;
-    } else if (vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no vigente')) {
-      noVigentes++;
-    } else if (vigencia.includes('no necesita') || vigencia.includes('no requiere') || vigencia.includes('no aplica')) {
+    const raw = r['Vigencia'] ?? '';
+    const vigencia = String(raw).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+    // Clasificación priorizada para evitar solapamientos (primero 'no necesita')
+    if (
+      vigencia.includes('no necesita') ||
+      vigencia.includes('no requiere') ||
+      vigencia.includes('no aplica')
+    ) {
       noNecesita++;
-    } else if (vigencia.trim()) {
-      noEspecificadas++;
+      return;
     }
+
+    if (
+      vigencia.includes('vigente') ||
+      vigencia.includes('activo') ||
+      vigencia === 'si' ||
+      vigencia === 'sí'
+    ) {
+      vigentes++;
+      return;
+    }
+
+    if (
+      vigencia.includes('vencid') ||
+      vigencia.includes('expir') ||
+      vigencia.includes('inactivo') ||
+      vigencia.includes('no vigente') ||
+      vigencia.includes('no-vigente') ||
+      vigencia === 'no'
+    ) {
+      noVigentes++;
+      return;
+    }
+
+    // Si está vacío o no coincide con ninguna categoría conocida, contar como No Especificadas
+    noEspecificadas++;
   });
   
   // Preparar datos para la gráfica
@@ -1017,12 +1044,14 @@ function imprimirGraficaTipoNorma(data){
     colors.push('#dc3545');
   }
   
+  // Mostrar categoría 'No Necesita' en amarillo
   if (noNecesita > 0) {
     series.push(noNecesita);
     labels.push(`No Necesita (${noNecesita})`);
     colors.push('#ffc107');
   }
   
+  // Mostrar 'No Especificadas' cuando existan valores vacíos o desconocidos
   if (noEspecificadas > 0) {
     series.push(noEspecificadas);
     labels.push(`No Especificadas (${noEspecificadas})`);
