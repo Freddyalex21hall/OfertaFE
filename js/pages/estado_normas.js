@@ -428,8 +428,6 @@ function renderTable() {
 
   renderVigentesTable();
   renderVencidasTable();
-  imprimirGraficaTipoNorma(filteredData);
-  imprimirGraficaTipoNormaVigencia(filteredData);
   renderPagination();
 }
 
@@ -778,17 +776,21 @@ document.getElementById('btnStats').addEventListener('click', () => {
         </table>
         <div class="mt-3">
           <h6 class="mb-2">Distribución por Tipo de Norma</h6>
-          <div id="chartTipoNorma"></div>
+          <div id="chartTipoNorma" style="min-height: 400px;"></div>
         </div>
         <div class="mt-4">
           <h6 class="mb-2">Vigentes vs No Vigentes por Tipo de Norma</h6>
-          <div id="chartTipoNormaVigencia"></div>
+          <div id="chartTipoNormaVigencia" style="min-height: 400px;"></div>
         </div>
       </div>
     </div>
   `;
-  imprimirGraficaTipoNorma(filteredData);
-  imprimirGraficaTipoNormaVigencia(filteredData);
+  
+  // Renderizar gráficas con un pequeño delay para asegurar que el DOM esté listo
+  setTimeout(() => {
+    imprimirGraficaTipoNorma(filteredData);
+    imprimirGraficaTipoNormaVigencia(filteredData);
+  }, 100);
 });
 
 // ===== CALCULAR ESTADÍSTICAS =====
