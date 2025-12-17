@@ -543,9 +543,11 @@ function renderTable() {
     const pageRows = filteredData.slice(startIdx, startIdx + PAGE_SIZE);
     const vencCol = HEADERS.find(h => normalize(h) === normalize('Fecha de vencimiento')) || 'Fecha de vencimiento';
     
+    const wrap = (text) => `<div class="cell-content" title="${String(text || '').replace(/"/g, '&quot;')}">${text || ''}</div>`;
+
     pageRows.forEach(row => {
         const tr = document.createElement('tr');
-        tr.innerHTML = HEADERS.map(h => `<td>${row[h] || ''}</td>`).join('');
+        tr.innerHTML = HEADERS.map(h => `<td>${wrap(row[h])}</td>`).join('');
         
         // Aplicar color según estado de vigencia
         const fechaVenc = row[vencCol];

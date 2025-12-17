@@ -11,12 +11,19 @@
   <link rel="stylesheet" href="../assets/css/style.css">
   <style>
     /* Estilos personalizados para la tabla del catálogo */
+    .table-responsive {
+      max-height: 70vh;
+      overflow-y: auto;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+    }
+
     #catalogoTable th {
       background-color: #343a40;
       color: white;
       position: sticky;
       top: 0;
-      z-index: 10;
+      z-index: 100;
       white-space: nowrap;
       padding: 12px;
       font-weight: 500;
@@ -24,7 +31,7 @@
       font-size: 0.85rem;
       letter-spacing: 0.5px;
       border-bottom: 3px solid #0056b3;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
 
     #catalogoTable td {
@@ -322,6 +329,52 @@
       </div>
     </div>
   </div>
+  <!-- Modal personalizado -->
+  <div class="custom-modal" id="successModal">
+    <div class="modal-content-custom">
+      <div class="modal-header-custom">
+        <i class="fas fa-check-circle" id="modalIcon"></i>
+        <h3 id="modalTitle">¡Carga Completada!</h3>
+      </div>
+      <div class="modal-body-custom">
+        <h4 id="modalSubtitle">Resumen de la importación</h4>
+        <p class="text-muted" id="modalDescription">Se procesó el archivo correctamente</p>
+        
+        <div class="modal-stats">
+          <div class="modal-stat-item">
+            <div class="number text-success" id="modalNewRecords">0</div>
+            <div class="label">Registros Nuevos</div>
+          </div>
+          <div class="modal-stat-item">
+            <div class="number text-warning" id="modalDuplicates">0</div>
+            <div class="label">Duplicados</div>
+          </div>
+          <div class="modal-stat-item">
+            <div class="number text-primary" id="modalTotalRecords">0</div>
+            <div class="label">Total en Sistema</div>
+          </div>
+        </div>
+        
+        <div id="modalAlerts">
+          <div class="alert alert-success d-none" id="alertSuccess" style="font-size: 0.9rem;">
+            <i class="fas fa-check-circle"></i> <span id="successMessage"></span>
+          </div>
+          <div class="alert alert-warning d-none" id="alertWarning" style="font-size: 0.9rem;">
+            <i class="fas fa-exclamation-triangle"></i> <span id="warningMessage"></span>
+          </div>
+          <div class="alert alert-info d-none" id="alertInfo" style="font-size: 0.9rem;">
+            <i class="fas fa-info-circle"></i> Los datos se han guardado automáticamente
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer-custom">
+        <button class="modal-btn modal-btn-primary" onclick="closeSuccessModal()">
+          Entendido <i class="fas fa-check"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Loading Overlay -->
   <div id="loadingOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.35); display:none; z-index:1050;">
     <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; padding:20px 24px; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.2); text-align:center; min-width:280px;">

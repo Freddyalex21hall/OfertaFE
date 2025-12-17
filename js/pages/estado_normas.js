@@ -330,6 +330,8 @@ function populateFilters() {
 }
 
 // ===== RENDERIZAR TABLA PRINCIPAL =====
+const wrap = (text) => `<div class="cell-content" title="${String(text || '').replace(/"/g, '&quot;')}">${text || ''}</div>`;
+
 function renderTable() {
   tableBody.innerHTML = '';
 
@@ -353,12 +355,12 @@ function renderTable() {
     const tr = document.createElement('tr');
 
     tr.innerHTML = `
-      <td>${row['RED CONOCIMIENTO'] || ''}</td>
-      <td>${row['NOMBRE_NCL'] || ''}</td>
-      <td>${row['CODIGO NCL'] || row['NCL CODIGO'] || ''}</td>
-      <td>${row['Tipo de competencia'] || ''}</td>
-      <td><span class="badge ${getVigenciaBadge(row['Vigencia'])}">${row['Vigencia'] || ''}</span></td>
-      <td>${row['Fecha de Elaboración'] || ''}</td>
+      <td>${wrap(row['RED CONOCIMIENTO'])}</td>
+      <td>${wrap(row['NOMBRE_NCL'])}</td>
+      <td>${wrap(row['CODIGO NCL'] || row['NCL CODIGO'])}</td>
+      <td>${wrap(row['Tipo de competencia'])}</td>
+      <td><div class="cell-content"><span class="badge ${getVigenciaBadge(row['Vigencia'])}">${row['Vigencia'] || ''}</span></div></td>
+      <td>${wrap(row['Fecha de Elaboración'])}</td>
     `;
     tableBody.appendChild(tr);
   });

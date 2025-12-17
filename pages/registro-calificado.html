@@ -10,6 +10,68 @@
   <link rel="stylesheet" href="../assets/css/styles.min.css">
   <link rel="stylesheet" href="../assets/css/style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    /* Estilos personalizados para la tabla de registro calificado */
+    .table-responsive {
+      max-height: 70vh;
+      overflow-y: auto;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+    }
+
+    #tablaRegistro th {
+      background-color: #343a40 !important;
+      color: white !important;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      white-space: nowrap;
+      padding: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      letter-spacing: 0.5px;
+      border-bottom: 3px solid #0056b3;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    #tablaRegistro td {
+      vertical-align: middle;
+      padding: 8px 12px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    #tablaRegistro tbody tr:hover {
+      background-color: #f1f8ff;
+    }
+
+    /* Barra de movilización dentro de la celda */
+    .cell-content {
+      max-width: 300px;
+      max-height: 80px;
+      overflow: auto;
+      font-size: 0.9rem;
+      color: #333;
+      white-space: nowrap; 
+      
+      scrollbar-width: thin;
+      scrollbar-color: #adb5bd #f8f9fa;
+    }
+    
+    .cell-content::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    .cell-content::-webkit-scrollbar-track {
+      background: #f8f9fa;
+    }
+
+    .cell-content::-webkit-scrollbar-thumb {
+      background-color: #adb5bd;
+      border-radius: 3px;
+    }
+  </style>
 </head>
 <body>
   <!-- Header Principal -->
@@ -84,96 +146,99 @@
 
   <div class="container-fluid">
     <div class="row">
-      <!-- Panel de Filtros -->
-      <div class="col-md-3 filter-panel">
-        <h5 class="mb-3"><i class="fas fa-filter"></i> Filtros de Búsqueda</h5>
-        
-        <!-- Zona de carga de archivos -->
-        <div class="upload-zone mb-4" id="uploadZone">
-          <i class="fas fa-file-excel fa-3x text-success mb-2"></i>
-          <p class="mb-2"><strong>Cargar archivo Excel</strong></p>
-          <p class="small text-muted">Click o arrastra el archivo aquí</p>
-          <input type="file" id="inputExcel" accept=".xlsx,.xls" style="display: none;">
-        </div>
-
-        <div class="stats-card">
-          <div class="d-flex justify-content-between">
-            <div>
-              <p class="mb-1 small">Total Registros</p>
-              <h4 class="mb-0" id="totalRecords">0</h4>
+      <!-- Sidebar de Filtros -->
+      <div class="col-md-3">
+        <!-- Card de Carga -->
+        <div class="card shadow-sm mb-3">
+          <div class="card-body text-center">
+            <div class="upload-zone p-3 border rounded bg-light mb-2" id="uploadZone" style="cursor: pointer;">
+              <i class="fas fa-file-excel fa-2x text-success mb-2"></i>
+              <p class="mb-0 small"><strong>Cargar Excel</strong></p>
+              <input type="file" id="inputExcel" accept=".xlsx,.xls" style="display: none;">
             </div>
-            <div>
-              <p class="mb-1 small">Filtrados</p>
-              <h4 class="mb-0" id="filteredRecords">0</h4>
+            <div class="d-flex justify-content-between text-muted small">
+              <span>Total: <strong id="totalRecords">0</strong></span>
+              <span>Filtrados: <strong id="filteredRecords">0</strong></span>
             </div>
           </div>
         </div>
 
-        <!-- Filtros -->
-        <div class="filter-group">
-          <label>Buscar en todos los campos</label>
-          <input type="text" class="form-control form-control-sm" id="searchAll" placeholder="Buscar...">
+        <!-- Card de Filtros -->
+        <div class="card shadow-sm mb-3">
+          <div class="card-header bg-white py-2">
+            <h6 class="mb-0"><i class="fas fa-filter"></i> Filtros</h6>
+          </div>
+          <div class="card-body">
+            <div class="mb-2">
+              <label class="small fw-bold">Buscar General</label>
+              <input type="text" class="form-control form-control-sm" id="searchAll" placeholder="Buscar...">
+            </div>
+            
+            <div class="mb-2">
+              <label class="small fw-bold">Tipo Trámite</label>
+              <select class="form-select form-select-sm" id="filterTipo">
+                <option value="">Todos</option>
+              </select>
+            </div>
+
+            <div class="mb-2">
+              <label class="small fw-bold">Modalidad</label>
+              <select class="form-select form-select-sm" id="filterModalidad">
+                <option value="">Todos</option>
+              </select>
+            </div>
+
+            <div class="mb-2">
+              <label class="small fw-bold">Radicado</label>
+              <select class="form-select form-select-sm" id="filterRadicado">
+                <option value="">Todos</option>
+              </select>
+            </div>
+
+            <div class="mb-2">
+              <label class="small fw-bold">Resolución</label>
+              <input type="text" class="form-control form-control-sm" id="filterResolucion" placeholder="No. Resolución">
+            </div>
+
+            <div class="mb-2">
+              <label class="small fw-bold">SNIES</label>
+              <input type="text" class="form-control form-control-sm" id="filterSnies" placeholder="Código SNIES">
+            </div>
+
+            <div class="mb-2">
+              <label class="small fw-bold">Cód. Programa</label>
+              <input type="text" class="form-control form-control-sm" id="filterPrograma" placeholder="Código Programa">
+            </div>
+
+            <div class="mb-2">
+              <label class="small fw-bold">Vencimiento</label>
+              <input type="date" class="form-control form-control-sm" id="filterVencimiento">
+            </div>
+
+            <div class="d-grid gap-2 mt-3">
+              <button class="btn btn-success btn-sm" id="applyFilters">Aplicar Filtros</button>
+              <button class="btn btn-secondary btn-sm" id="clearFilters">Limpiar</button>
+            </div>
+          </div>
         </div>
 
-        <div class="filter-group">
-          <label>Tipo de Trámite</label>
-          <select class="form-select form-select-sm" id="filterTipo">
-            <option value="">Todos</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label>Fecha Radicado</label>
-          <select class="form-select form-select-sm" id="filterRadicado">
-            <option value="">Todos</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label>Número de Resolución</label>
-          <input type="text" class="form-control form-control-sm" id="filterResolucion" placeholder="Escribe el número" />
-        </div>
-
-        <div class="filter-group">
-          <label>SNIES</label>
-          <input type="text" class="form-control form-control-sm" id="filterSnies" placeholder="Escribe el SNIES" />
-        </div>
-
-        <div class="filter-group">
-          <label>Fecha de Vencimiento</label>
-          <input type="date" class="form-control form-control-sm" id="filterVencimiento" />
-        </div>
-
-        <div class="filter-group">
-          <label>Código Programa</label>
-          <input type="text" class="form-control form-control-sm" id="filterPrograma" placeholder="Escribe el código" />
-        </div>
-
-        <div class="filter-group">
-          <label>Modalidad</label>
-          <select class="form-select form-select-sm" id="filterModalidad">
-            <option value="">Todos</option>
-          </select>
-        </div>
-
-        <div class="d-grid gap-2 mt-3">
-          <button class="btn btn-success btn-sm" id="applyFilters"><i class="fas fa-check"></i> Aplicar Filtros</button>
-          <button class="btn btn-secondary btn-sm" id="clearFilters"><i class="fas fa-times"></i> Limpiar</button>
-          <button class="btn btn-primary btn-sm" id="exportExcel"><i class="fas fa-file-excel"></i> Exportar Excel</button>
-          <button class="btn btn-danger btn-sm" id="clearAllData"><i class="fas fa-trash"></i> Borrar Todos los Datos</button>
+        <!-- Card de Acciones -->
+        <div class="card shadow-sm">
+          <div class="card-body d-grid gap-2">
+            <button class="btn btn-primary btn-sm" id="exportExcel"><i class="fas fa-file-excel"></i> Exportar Excel</button>
+            <button class="btn btn-danger btn-sm" id="clearAllData"><i class="fas fa-trash"></i> Borrar Todo</button>
+          </div>
         </div>
       </div>
 
       <!-- Panel de Contenido -->
-      <div class="col-md-9 content-panel">
+      <div class="col-md-9">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5><i class="fas fa-file-alt"></i> Registros Calificados</h5>
-          <div>
-            <div class="btn-group btn-group-sm ms-2" role="group" aria-label="Vigencia">
-              <button class="btn btn-danger" id="filterVencidos"><i class="fas fa-times-circle"></i> Vencidos</button>
-              <button class="btn btn-warning" id="filterPorVencer"><i class="fas fa-exclamation-circle"></i> Por vencer</button>
-              <button class="btn btn-success" id="filterVigentes"><i class="fas fa-check-circle"></i> Vigentes</button>
-            </div>
+          <h4 class="mb-0"><i class="fas fa-file-alt"></i> Registros Calificados</h4>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-danger" id="filterVencidos"><i class="fas fa-times-circle"></i> Vencidos</button>
+            <button class="btn btn-outline-warning" id="filterPorVencer"><i class="fas fa-exclamation-circle"></i> Por vencer</button>
+            <button class="btn btn-outline-success" id="filterVigentes"><i class="fas fa-check-circle"></i> Vigentes</button>
           </div>
         </div>
 
@@ -181,55 +246,29 @@
         <div class="card mb-3" style="border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
           <div class="card-body p-3">
             <h6 class="mb-3 text-muted" style="font-size: 0.875rem; font-weight: 600;">
-              <i class="fas fa-chart-bar"></i> Estado de Vigencia de Registros Calificados
+              <i class="fas fa-chart-bar"></i> Estado de Vigencia
             </h6>
             
-            <!-- Barra de progreso con tres segmentos -->
-            <div class="progress mb-2" style="height: 30px; border-radius: 6px; background-color: #e9ecef;">
-              <div id="barVencidos" class="progress-bar bg-danger" role="progressbar" 
-                   style="width: 0%; transition: width 0.5s ease;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-              </div>
-              <div id="barPorVencer" class="progress-bar bg-warning" role="progressbar" 
-                   style="width: 0%; transition: width 0.5s ease;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-              </div>
-              <div id="barVigentes" class="progress-bar bg-success" role="progressbar" 
-                   style="width: 0%; transition: width 0.5s ease;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-              </div>
+            <!-- Barra de progreso -->
+            <div class="progress mb-2" style="height: 25px;">
+              <div id="barVencidos" class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
+              <div id="barPorVencer" class="progress-bar bg-warning" role="progressbar" style="width: 0%"></div>
+              <div id="barVigentes" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
             </div>
             
-            <!-- Leyenda con números y porcentajes -->
-            <div class="d-flex justify-content-between align-items-center mt-2" style="font-size: 0.75rem;">
-              <div class="text-center" style="flex: 1;">
-                <div class="d-flex align-items-center justify-content-center mb-1">
-                  <span class="badge bg-danger me-1" style="width: 12px; height: 12px; padding: 0;"></span>
-                  <span class="text-muted" style="font-weight: 600;">Vencidos</span>
-                </div>
-                <div style="font-size: 0.85rem; color: #666;">
-                  <strong id="countVencidos">0</strong> registros
-                </div>
-                <div style="font-size: 0.75rem; color: #999;" id="percentVencidos">0%</div>
+            <!-- Leyenda -->
+            <div class="d-flex justify-content-between text-center mt-2 small">
+              <div class="flex-fill">
+                <span class="badge bg-danger">Vencidos</span>
+                <div><strong id="countVencidos">0</strong> (<span id="percentVencidos">0%</span>)</div>
               </div>
-              
-              <div class="text-center" style="flex: 1;">
-                <div class="d-flex align-items-center justify-content-center mb-1">
-                  <span class="badge bg-warning me-1" style="width: 12px; height: 12px; padding: 0;"></span>
-                  <span class="text-muted" style="font-weight: 600;">Por Vencer</span>
-                </div>
-                <div style="font-size: 0.85rem; color: #666;">
-                  <strong id="countPorVencer">0</strong> registros
-                </div>
-                <div style="font-size: 0.75rem; color: #999;" id="percentPorVencer">0%</div>
+              <div class="flex-fill">
+                <span class="badge bg-warning text-dark">Por Vencer</span>
+                <div><strong id="countPorVencer">0</strong> (<span id="percentPorVencer">0%</span>)</div>
               </div>
-              
-              <div class="text-center" style="flex: 1;">
-                <div class="d-flex align-items-center justify-content-center mb-1">
-                  <span class="badge bg-success me-1" style="width: 12px; height: 12px; padding: 0;"></span>
-                  <span class="text-muted" style="font-weight: 600;">Vigentes</span>
-                </div>
-                <div style="font-size: 0.85rem; color: #666;">
-                  <strong id="countVigentes">0</strong> registros
-                </div>
-                <div style="font-size: 0.75rem; color: #999;" id="percentVigentes">0%</div>
+              <div class="flex-fill">
+                <span class="badge bg-success">Vigentes</span>
+                <div><strong id="countVigentes">0</strong> (<span id="percentVigentes">0%</span>)</div>
               </div>
             </div>
           </div>
@@ -262,9 +301,9 @@
         </div>
 
         <!-- Paginación -->
-        <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2 mt-2" id="paginationContainer">
+        <div class="d-flex justify-content-between align-items-center mt-3" id="paginationContainer">
           <div class="small text-muted" id="paginationInfo">Mostrando 0-0 de 0</div>
-          <div class="btn-group btn-group-sm" role="group" aria-label="Paginación">
+          <div class="btn-group btn-group-sm">
             <button class="btn btn-outline-secondary" id="prevPage"><i class="fas fa-chevron-left"></i> Anterior</button>
             <button class="btn btn-outline-secondary" id="nextPage">Siguiente <i class="fas fa-chevron-right"></i></button>
           </div>

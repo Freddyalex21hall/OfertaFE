@@ -9,6 +9,68 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <link rel="stylesheet" href="../assets/css/styles.min.css">
   <link rel="stylesheet" href="../assets/css/style.css">
+  <style>
+    /* Estilos personalizados para la tabla del histórico */
+    .table-responsive {
+      max-height: 70vh;
+      overflow-y: auto;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+    }
+
+    .table-responsive table th {
+      background-color: #343a40 !important;
+      color: white !important;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      white-space: nowrap;
+      padding: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      letter-spacing: 0.5px;
+      border-bottom: 3px solid #0056b3;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .table-responsive table td {
+      vertical-align: middle;
+      padding: 8px 12px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .table-responsive table tbody tr:hover {
+      background-color: #f1f8ff;
+    }
+
+    /* Barra de movilización dentro de la celda */
+    .cell-content {
+      max-width: 300px;
+      max-height: 80px;
+      overflow: auto;
+      font-size: 0.9rem;
+      color: #333;
+      white-space: nowrap; 
+      
+      scrollbar-width: thin;
+      scrollbar-color: #adb5bd #f8f9fa;
+    }
+
+    .cell-content::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    .cell-content::-webkit-scrollbar-track {
+      background: #f8f9fa;
+    }
+
+    .cell-content::-webkit-scrollbar-thumb {
+      background-color: #adb5bd;
+      border-radius: 3px;
+    }
+  </style>
 </head>
 <body>
   <!-- Header Principal -->
@@ -117,9 +179,6 @@
           </div>
           <div class="alert alert-info d-none" id="alertInfo" style="font-size: 0.9rem;">
             <i class="fas fa-info-circle"></i> Los datos se han guardado automáticamente
-          </div>
-          <div class="alert alert-danger d-none" id="alertDanger" style="font-size: 0.9rem;">
-            <i class="fas fa-times-circle"></i> <span id="dangerMessage"></span>
           </div>
         </div>
       </div>
