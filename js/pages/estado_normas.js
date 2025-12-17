@@ -1026,63 +1026,33 @@ document.getElementById('inputPageNumber')?.addEventListener('keydown', (e) => {
 
 // ==================== SECCIÓN 6: GRÁFICAS Y ESTADÍSTICAS ====================
 
-// ===== GRÁFICA CIRCULAR: VIGENTES | NO VIGENTES | NO NECESITA | NO ESPECIFICADAS =====
+// ===== GRÁFICA CIRCULAR: VIGENTES | NO VIGENTES | NO NECESITA | NO APLICA =====
 function imprimirGraficaTipoNorma(data){
   // Contar normas por estado de vigencia
   let vigentes = 0;
   let noVigentes = 0;
   let noNecesita = 0;
-  let noEspecificadas = 0;
+  let noAplica = 0;
 
   (Array.isArray(data) ? data : []).forEach(r => {
     const cat = classifyVigencia(r['Vigencia']);
     if (cat === 'vigentes') vigentes++;
     else if (cat === 'noVigentes') noVigentes++;
     else if (cat === 'noNecesita') noNecesita++;
-    else noEspecificadas++;
+    else if (cat === 'noAplica') noAplica++;
+    else noAplica++; // noEspecificadas va a noAplica
   });
   
-  // Preparar datos para la gráfica
-  const series = [];
-  const labels = [];
-  const colors = [];
-  
-  if (vigentes > 0) {
-    series.push(vigentes);
-    labels.push(`Vigentes (${vigentes})`);
-    colors.push('#28a745');
-  }
-  
-  if (noVigentes > 0) {
-    series.push(noVigentes);
-    labels.push(`No Vigentes (${noVigentes})`);
-    colors.push('#dc3545');
-  }
-  
-  // Mostrar categoría 'No Necesita' en amarillo
-  if (noNecesita > 0) {
-    series.push(noNecesita);
-    labels.push(`No Necesita (${noNecesita})`);
-    colors.push('#ffc107');
-  }
-  
-  // Mostrar 'No Especificadas' cuando existan valores vacíos o desconocidos
-  if (noEspecificadas > 0) {
-    series.push(noEspecificadas);
-    labels.push(`No Especificadas (${noEspecificadas})`);
-    colors.push('#6c757d');
-  }
-  
-  // Siempre mostrar las 4 categorías en el orden fijo, aunque sean 0
+  // Siempre mostrar las 4 categorías en el orden fijo
   const el = document.querySelector('#chartTipoNorma');
   if (!el) return;
 
-  const finalSeries = [vigentes, noVigentes, noNecesita, noEspecificadas];
+  const finalSeries = [vigentes, noVigentes, noNecesita, noAplica];
   const finalLabels = [
     `Vigentes (${vigentes})`,
     `No Vigentes (${noVigentes})`,
     `No Necesita (${noNecesita})`,
-    `No Especificadas (${noEspecificadas})`
+    `No Aplica (${noAplica})`
   ];
   const finalColors = ['#28a745', '#dc3545', '#ffc107', '#6c757d'];
   
@@ -1095,14 +1065,24 @@ function imprimirGraficaTipoNorma(data){
       pie: {
         dataLabels: {
           enabled: true,
+          minAngleToShowLabel: 0,
           formatter: function(val, opts) {
-            return opts.w.globals.series[opts.seriesIndex]; // mostrar cantidad
+            const count = opts.w.globals.series[opts.seriesIndex];
+            return count > 0 ? count : ''; // mostrar cantidad si es mayor a 0
           }
         }
       }
     },
+    dataLabels: {
+      enabled: true,
+      style: {
+        fontSize: '12px',
+        fontWeight: 'bold'
+      }
+    },
     legend: {
-      position: 'bottom'
+      position: 'bottom',
+      show: true
     },
     tooltip: {
       y: {
