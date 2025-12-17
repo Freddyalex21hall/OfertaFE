@@ -979,7 +979,7 @@ document.getElementById('inputPageNumber')?.addEventListener('keydown', (e) => {
 
 // ==================== SECCIÓN 6: GRÁFICAS Y ESTADÍSTICAS ====================
 
-// ===== GRÁFICA CIRCULAR: VIGENTES vs NO VIGENTES vs NO NECESITA vs NO ESPECIFICADAS =====
+// ===== GRÁFICA CIRCULAR: VIGENTES | NO VIGENTES | NO NECESITA | NO ESPECIFICADAS =====
 function imprimirGraficaTipoNorma(data){
   // Contar normas por estado de vigencia
   let vigentes = 0;
@@ -989,42 +989,51 @@ function imprimirGraficaTipoNorma(data){
 
   (Array.isArray(data) ? data : []).forEach(r => {
     const raw = r['Vigencia'] ?? '';
-    const vigencia = String(raw).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    const vigencia = String(raw)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
 
-    // Clasificación priorizada para evitar solapamientos (primero 'no necesita')
-    if (
-      vigencia.includes('no necesita') ||
-      vigencia.includes('no requiere') ||
-      vigencia.includes('no aplica')
-    ) {
-      noNecesita++;
-      return;
+    // Clasificación priorizada (primero 'no necesita')
+    if (vigencia) {
+      if (
+        vigencia.includes('no necesita') ||
+        vigencia.includes('no requiere') ||
+        vigencia.includes('no aplica')
+      ) {
+        noNecesita++;
+        return;
+      }
+
+      if (
+        vigencia.includes('vigente') ||
+        vigencia.includes('activo') ||
+        vigencia === 'si' ||
+        vigencia === 'sí'
+      ) {
+        vigentes++;
+        return;
+      }
+
+      if (
+        vigencia.includes('vencid') || // vencida, vencido
+        vigencia.includes('expir') ||   // expirada, expirado
+        vigencia.includes('inactiv') || // inactivo, inactiva
+        vigencia.includes('no vigente') ||
+        vigencia.includes('no-vigente') ||
+        vigencia === 'no'
+      ) {
+        noVigentes++;
+        return;
+      }
+
+      // Valor presente pero no reconocido
+      noEspecificadas++;
+    } else {
+      // Campo vacío
+      noEspecificadas++;
     }
-
-    if (
-      vigencia.includes('vigente') ||
-      vigencia.includes('activo') ||
-      vigencia === 'si' ||
-      vigencia === 'sí'
-    ) {
-      vigentes++;
-      return;
-    }
-
-    if (
-      vigencia.includes('vencid') ||
-      vigencia.includes('expir') ||
-      vigencia.includes('inactivo') ||
-      vigencia.includes('no vigente') ||
-      vigencia.includes('no-vigente') ||
-      vigencia === 'no'
-    ) {
-      noVigentes++;
-      return;
-    }
-
-    // Si está vacío o no coincide con ninguna categoría conocida, contar como No Especificadas
-    noEspecificadas++;
   });
   
   // Preparar datos para la gráfica
@@ -1058,27 +1067,30 @@ function imprimirGraficaTipoNorma(data){
     colors.push('#6c757d');
   }
   
-  // Si no hay datos, mostrar placeholder
-  if (series.length === 0) {
-    const el = document.querySelector('#chartTipoNorma');
-    if (el) el.innerHTML = '<p class="text-center text-muted">Sin datos disponibles</p>';
-    return;
-  }
+  // Siempre mostrar las 4 categorías en el orden fijo, aunque sean 0
+  const el = document.querySelector('#chartTipoNorma');
+  if (!el) return;
+
+  const finalSeries = [vigentes, noVigentes, noNecesita, noEspecificadas];
+  const finalLabels = [
+    `Vigentes (${vigentes})`,
+    `No Vigentes (${noVigentes})`,
+    `No Necesita (${noNecesita})`,
+    `No Especificadas (${noEspecificadas})`
+  ];
+  const finalColors = ['#28a745', '#dc3545', '#ffc107', '#6c757d'];
   
   const options = {
-    series: series,
-    chart: { 
-      type: 'pie',
-      width: 420
-    },
-    labels: labels,
-    colors: colors,
+    series: finalSeries,
+    chart: { type: 'pie', width: 420 },
+    labels: finalLabels,
+    colors: finalColors,
     plotOptions: {
       pie: {
         dataLabels: {
           enabled: true,
           formatter: function(val, opts) {
-            return opts.w.globals.series[opts.seriesIndex];
+            return opts.w.globals.series[opts.seriesIndex]; // mostrar cantidad
           }
         }
       }
@@ -1101,9 +1113,6 @@ function imprimirGraficaTipoNorma(data){
       } 
     }]
   };
-  
-  const el = document.querySelector('#chartTipoNorma');
-  if (!el) return;
   el.innerHTML = '';
   const chart = new ApexCharts(el, options);
   chart.render();
