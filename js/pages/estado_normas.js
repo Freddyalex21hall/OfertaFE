@@ -352,7 +352,9 @@ function populateFilters() {
 
   // Poblar filtro de año
   const selectAno = document.getElementById('filterAno');
-  if (selectAno) {
+  const selectAnoTable = document.getElementById('filterAnoTable');
+  
+  if (selectAno || selectAnoTable) {
     const anos = new Set();
     allData.forEach(item => {
       const fecha = item['Fecha de Elaboración'];
@@ -364,13 +366,27 @@ function populateFilters() {
       }
     });
     
-    selectAno.innerHTML = '<option value="">Todos</option>';
-    [...anos].sort((a, b) => b - a).forEach(ano => {
-      const option = document.createElement('option');
-      option.value = ano;
-      option.textContent = ano;
-      selectAno.appendChild(option);
-    });
+    const anosArray = [...anos].sort((a, b) => b - a);
+    
+    if (selectAno) {
+      selectAno.innerHTML = '<option value="">Todos</option>';
+      anosArray.forEach(ano => {
+        const option = document.createElement('option');
+        option.value = ano;
+        option.textContent = ano;
+        selectAno.appendChild(option);
+      });
+    }
+    
+    if (selectAnoTable) {
+      selectAnoTable.innerHTML = '<option value="">Todos</option>';
+      anosArray.forEach(ano => {
+        const option = document.createElement('option');
+        option.value = ano;
+        option.textContent = ano;
+        selectAnoTable.appendChild(option);
+      });
+    }
   }
 }
 
@@ -667,6 +683,41 @@ document.querySelectorAll('.btn-tab').forEach(btn => {
     document.querySelectorAll('.sub-table').forEach(t => t.classList.remove('active'));
     document.getElementById(`table-${btn.dataset.tab}`).classList.add('active');
   });
+});
+
+// ===== FILTRO DE AÑO EN LA TABLA =====
+document.getElementById('filterAnoTable')?.addEventListener('change', () => {
+  const selectedAno = document.getElementById('filterAnoTable').value;
+  
+  // Filtrar datos por año
+  if (selectedAno) {
+    const anoNum = parseInt(selectedAno, 10);
+    filteredData = allData.filter(row => {
+      const fecha = row['Fecha de Elaboración'];
+      if (fecha) {
+        const anoFecha = new Date(fecha).getFullYear();
+        return anoFecha === anoNum;
+      }
+      return false;
+    });
+  } else {
+    filteredData = [...allData];
+  }
+  
+  // Mostrar contador de registros filtrados
+  const countByYear = document.getElementById('countByYear');
+  if (countByYear) {
+    if (filteredData.length > 0) {
+      countByYear.textContent = `${filteredData.length} registros`;
+      countByYear.style.display = 'inline-block';
+    } else {
+      countByYear.style.display = 'none';
+    }
+  }
+  
+  currentPage = 1;
+  renderTable();
+  updateStats();
 });
 
 // ===== BOTÓN DE ESTADÍSTICAS =====
@@ -1010,6 +1061,21 @@ document.getElementById('inputPageNumber')?.addEventListener('keydown', (e) => {
 });
 
 // ==================== SECCIÓN 6: GRÁFICAS Y ESTADÍSTICAS ====================
+
+// ===== CLASIFICAR VIGENCIA =====
+function classifyVigencia(vigenciaRaw) {
+  if (!vigenciaRaw) return 'noAplica';
+  
+  const vigencia = vigenciaRaw.toLowerCase().trim();
+  
+  // Prioridad: no aplica → no necesita → no vigente → vigente
+  if (vigencia.includes('no aplica')) return 'noAplica';
+  if (vigencia.includes('no necesita') || vigencia.includes('no requiere')) return 'noNecesita';
+  if (vigencia.includes('vencid') || vigencia.includes('expir') || vigencia.includes('inactiv') || vigencia.includes('no vigente')) return 'noVigentes';
+  if (vigencia.includes('vigente') || vigencia.includes('activo') || vigencia.includes('sí')) return 'vigentes';
+  
+  return 'noAplica'; // Default
+}
 
 // ===== GRÁFICA CIRCULAR: VIGENTES | NO VIGENTES | NO NECESITA | NO APLICA =====
 

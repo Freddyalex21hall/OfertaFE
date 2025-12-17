@@ -70,6 +70,43 @@
       background-color: #adb5bd;
       border-radius: 3px;
     }
+
+    /* Estilos para tabs */
+    .btn-tab {
+      background-color: #f8f9fa;
+      border: 1px solid #dee2e6;
+      padding: 10px 20px;
+      margin-right: 5px;
+      cursor: pointer;
+      border-radius: 4px 4px 0 0;
+      font-weight: 500;
+      color: #333;
+      transition: all 0.3s ease;
+    }
+
+    .btn-tab:hover {
+      background-color: #e9ecef;
+      border-color: #adb5bd;
+    }
+
+    .btn-tab.active {
+      background-color: #0056b3;
+      color: white;
+      border-color: #0056b3;
+    }
+
+    .sub-table {
+      display: none;
+      padding: 20px;
+      background-color: white;
+      border: 1px solid #dee2e6;
+      border-radius: 0 4px 4px 4px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .sub-table.active {
+      display: block;
+    }
   </style>
 </head>
 <body>
