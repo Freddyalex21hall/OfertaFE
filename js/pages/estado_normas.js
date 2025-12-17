@@ -348,9 +348,9 @@ function populateFilters() {
     });
   });
 
-  // Poblar filtro de año
-  const selectAno = document.getElementById('filterAno');
-  if (selectAno) {
+  // Poblar filtro de año en la tabla
+  const selectAnoTable = document.getElementById('filterAnoTable');
+  if (selectAnoTable) {
     const anos = new Set();
     allData.forEach(item => {
       const fecha = item['Fecha de Elaboración'];
@@ -362,12 +362,12 @@ function populateFilters() {
       }
     });
     
-    selectAno.innerHTML = '<option value="">Todos</option>';
+    selectAnoTable.innerHTML = '<option value="">Todos</option>';
     [...anos].sort((a, b) => b - a).forEach(ano => {
       const option = document.createElement('option');
       option.value = ano;
       option.textContent = ano;
-      selectAno.appendChild(option);
+      selectAnoTable.appendChild(option);
     });
   }
 }
@@ -498,7 +498,7 @@ document.getElementById('applyFilters').addEventListener('click', () => {
   const tipoCompetencia = document.getElementById('filterTipoCompetencia').value;
   const vigencia = document.getElementById('filterVigencia').value;
   const codigoPrograma = document.getElementById('filterCodigoPrograma').value;
-  const ano = document.getElementById('filterAno').value;
+  const ano = document.getElementById('filterAnoTable')?.value || '';
   const fechaDesde = document.getElementById('filterFechaElaboracionDe').value;
   const fechaHasta = document.getElementById('filterFechaElaboracionHasta').value;
 
@@ -560,11 +560,56 @@ document.getElementById('clearFilters').addEventListener('click', () => {
   document.querySelectorAll('.filter-group select').forEach(select => select.value = '');
   document.getElementById('filterFechaElaboracionDe').value = '';
   document.getElementById('filterFechaElaboracionHasta').value = '';
+  
+  // Resetear filtro de año en tabla
+  const filterAnoTable = document.getElementById('filterAnoTable');
+  const countByYear = document.getElementById('countByYear');
+  if (filterAnoTable) filterAnoTable.value = '';
+  if (countByYear) countByYear.style.display = 'none';
+  
   filteredData = [...allData];
   currentPage = 1;
   renderTable();
   updateStats();
 });
+
+// ===== FILTRO POR AÑO EN TABLA =====
+const filterAnoTable = document.getElementById('filterAnoTable');
+const countByYear = document.getElementById('countByYear');
+
+if (filterAnoTable) {
+  filterAnoTable.addEventListener('change', () => {
+    const anoSeleccionado = filterAnoTable.value;
+    
+    if (anoSeleccionado) {
+      // Filtrar por año
+      filteredData = allData.filter(row => {
+        const fecha = row['Fecha de Elaboración'];
+        if (fecha) {
+          const ano = new Date(fecha).getFullYear();
+          return ano.toString() === anoSeleccionado;
+        }
+        return false;
+      });
+      
+      // Mostrar contador
+      if (countByYear) {
+        countByYear.textContent = `${filteredData.length} registro${filteredData.length !== 1 ? 's' : ''}`;
+        countByYear.style.display = 'inline-block';
+      }
+    } else {
+      // Mostrar todos
+      filteredData = [...allData];
+      if (countByYear) {
+        countByYear.style.display = 'none';
+      }
+    }
+    
+    currentPage = 1;
+    renderTable();
+    updateStats();
+  });
+}
 
 // ===== EXPORTAR A EXCEL =====
 document.getElementById('exportExcel').addEventListener('click', () => {
@@ -932,19 +977,22 @@ document.getElementById('inputPageNumber')?.addEventListener('keydown', (e) => {
 
 // ==================== SECCIÓN 6: GRÁFICAS Y ESTADÍSTICAS ====================
 
-// ===== GRÁFICA CIRCULAR: VIGENTES vs NO VIGENTES =====
+// ===== GRÁFICA CIRCULAR: VIGENTES vs NO VIGENTES vs NO NECESITA =====
 function imprimirGraficaTipoNorma(data){
-  // Contar normas vigentes, no vigentes y no especificadas
+  // Contar normas vigentes, no vigentes, no necesita y no especificadas
   let vigentes = 0;
   let noVigentes = 0;
+  let noNecesita = 0;
   let noEspecificadas = 0;
   
   (Array.isArray(data) ? data : []).forEach(r => {
     const vigencia = r['Vigencia']?.toLowerCase() || '';
     if (vigencia.includes('vigente') || vigencia.includes('activo') || vigencia.includes('sí')) {
       vigentes++;
-    } else if (vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no')) {
+    } else if (vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no vigente')) {
       noVigentes++;
+    } else if (vigencia.includes('no necesita') || vigencia.includes('no requiere') || vigencia.includes('no aplica')) {
+      noNecesita++;
     } else if (vigencia.trim()) {
       noEspecificadas++;
     }
@@ -965,6 +1013,12 @@ function imprimirGraficaTipoNorma(data){
     series.push(noVigentes);
     labels.push(`No Vigentes (${noVigentes})`);
     colors.push('#dc3545');
+  }
+  
+  if (noNecesita > 0) {
+    series.push(noNecesita);
+    labels.push(`No Necesita (${noNecesita})`);
+    colors.push('#ffc107');
   }
   
   if (noEspecificadas > 0) {
