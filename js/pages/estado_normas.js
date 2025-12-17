@@ -44,7 +44,11 @@ function saveDataToMemory() {
     sessionStorage.setItem('senaEstadoNormasData', dataStr);
     sessionStorage.setItem('senaEstadoNormasLastUpdate', new Date().toISOString());
   } catch (e) {
-    console.error('Error al guardar datos:', e);
+    if (e.name === 'QuotaExceededError') {
+        console.warn('⚠️ Storage lleno: No se pudieron guardar los datos localmente. Funcionará en memoria RAM.');
+    } else {
+        console.error('Error al guardar datos:', e);
+    }
   }
 }
 
@@ -426,6 +430,15 @@ function getVigenciaBadge(vigencia) {
     return 'bg-danger';
   }
   return 'bg-warning';
+}
+
+// ===== CLASIFICAR VIGENCIA =====
+function classifyVigencia(vigencia) {
+  if (!vigencia) return 'desconocido';
+  const v = vigencia.toLowerCase();
+  if (v.includes('vigente') || v.includes('activo') || v.includes('sí')) return 'vigentes';
+  if (v.includes('vencido') || v.includes('expirado') || v.includes('no') || v.includes('inactivo')) return 'vencidas';
+  return 'otro';
 }
 
 // ===== RENDERIZAR TABLA DE NORMAS VIGENTES =====
@@ -931,16 +944,13 @@ document.getElementById('inputPageNumber')?.addEventListener('keydown', (e) => {
 
 // ==================== SECCIÓN 6: GRÁFICAS Y ESTADÍSTICAS ====================
 
-<<<<<<< HEAD
-// ===== GRÁFICA CIRCULAR: VIGENTES | NO VIGENTES | NO NECESITA | NO APLICA =====
-=======
 // ===== GRÁFICA CIRCULAR: VIGENTES vs NO VIGENTES =====
->>>>>>> beb93b3fef3ac2540639200a727a53f3370ff8a8
+
 function imprimirGraficaTipoNorma(data){
   // Contar normas vigentes, no vigentes y no especificadas
   let vigentes = 0;
   let noVigentes = 0;
-<<<<<<< HEAD
+
   let noNecesita = 0;
   let noAplica = 0;
 
@@ -954,8 +964,7 @@ function imprimirGraficaTipoNorma(data){
   });
   
   // Siempre mostrar las 4 categorías en el orden fijo
-  const el = document.querySelector('#chartTipoNorma');
-  if (!el) return;
+  if (!document.querySelector('#chartTipoNorma')) return;
 
   const finalSeries = [vigentes, noVigentes, noNecesita, noAplica];
   const finalLabels = [
@@ -965,7 +974,7 @@ function imprimirGraficaTipoNorma(data){
     `No Aplica (${noAplica})`
   ];
   const finalColors = ['#28a745', '#dc3545', '#ffc107', '#6c757d'];
-=======
+
   let noEspecificadas = 0;
   
   (Array.isArray(data) ? data : []).forEach(r => {
@@ -1008,7 +1017,6 @@ function imprimirGraficaTipoNorma(data){
     if (el) el.innerHTML = '<p class="text-center text-muted">Sin datos disponibles</p>';
     return;
   }
->>>>>>> beb93b3fef3ac2540639200a727a53f3370ff8a8
   
   const options = {
     series: series,
@@ -1024,12 +1032,12 @@ function imprimirGraficaTipoNorma(data){
           enabled: true,
           minAngleToShowLabel: 0,
           formatter: function(val, opts) {
-<<<<<<< HEAD
+
             const count = opts.w.globals.series[opts.seriesIndex];
             return count > 0 ? count : ''; // mostrar cantidad si es mayor a 0
-=======
+
             return opts.w.globals.series[opts.seriesIndex];
->>>>>>> beb93b3fef3ac2540639200a727a53f3370ff8a8
+
           }
         }
       }
@@ -1062,9 +1070,9 @@ function imprimirGraficaTipoNorma(data){
   };
   
   const el = document.querySelector('#chartTipoNorma');
-  if (!el) return;
-  el.innerHTML = '';
-  const chart = new ApexCharts(el, options);
+  if (!document.querySelector('#chartTipoNorma')) return;
+  (document.querySelector('#chartTipoNorma')).innerHTML = '';
+  const chart = new ApexCharts((document.querySelector('#chartTipoNorma')), options);
   chart.render();
 }
 
