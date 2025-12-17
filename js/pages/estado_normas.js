@@ -102,7 +102,7 @@ function processFile(file) {
 
   // UI: Iniciar tarea
   const taskId = addUploadTask(file);
-  showLoadingOverlay(true);
+  // showLoadingOverlay(true); // Desactivado para permitir trabajo en segundo plano
 
   // Subir con progreso
   estadoNormasService.uploadExcelWithProgress(file, (percent) => {
@@ -146,7 +146,7 @@ function processFile(file) {
     alert('Error al subir el archivo: ' + (error.message || 'Error desconocido'));
   })
   .finally(() => {
-    showLoadingOverlay(false);
+    // showLoadingOverlay(false);
   });
 }
 
@@ -348,9 +348,9 @@ function populateFilters() {
     });
   });
 
-  // Poblar filtro de año en la tabla
-  const selectAnoTable = document.getElementById('filterAnoTable');
-  if (selectAnoTable) {
+  // Poblar filtro de año
+  const selectAno = document.getElementById('filterAno');
+  if (selectAno) {
     const anos = new Set();
     allData.forEach(item => {
       const fecha = item['Fecha de Elaboración'];
@@ -362,12 +362,12 @@ function populateFilters() {
       }
     });
     
-    selectAnoTable.innerHTML = '<option value="">Todos</option>';
+    selectAno.innerHTML = '<option value="">Todos</option>';
     [...anos].sort((a, b) => b - a).forEach(ano => {
       const option = document.createElement('option');
       option.value = ano;
       option.textContent = ano;
-      selectAnoTable.appendChild(option);
+      selectAno.appendChild(option);
     });
   }
 }
@@ -396,24 +396,14 @@ function renderTable() {
 
   pageData.forEach(row => {
     const tr = document.createElement('tr');
-    const cat = classifyVigencia(row['Vigencia']);
-    const label = formatVigenciaLabel(cat);
 
     tr.innerHTML = `
-      <td>${row['RED CONOCIMIENTO'] || ''}</td>
-      <td>${row['NOMBRE_NCL'] || ''}</td>
-      <td>${row['CODIGO NCL'] || row['NCL CODIGO'] || ''}</td>
-      <td>${row['NCL VERSION'] || ''}</td>
-      <td>${row['Norma corte a NOVIEMBRE'] || ''}</td>
-      <td>${row['Versión'] || ''}</td>
-      <td>${row['Norma - Versión'] || ''}</td>
-      <td>${row['Mesa Sectorial'] || ''}</td>
-      <td>${row['Tipo de Norma'] || ''}</td>
-      <td>${row['Observación'] || ''}</td>
-      <td>${row['Fecha de revisión'] || ''}</td>
-      <td>${row['Tipo de competencia'] || ''}</td>
-      <td><span class="badge ${getVigenciaBadge(row['Vigencia'])}">${label}</span></td>
-      <td>${row['Fecha de Elaboración'] || ''}</td>
+      <td>${wrap(row['RED CONOCIMIENTO'])}</td>
+      <td>${wrap(row['NOMBRE_NCL'])}</td>
+      <td>${wrap(row['CODIGO NCL'] || row['NCL CODIGO'])}</td>
+      <td>${wrap(row['Tipo de competencia'])}</td>
+      <td><div class="cell-content"><span class="badge ${getVigenciaBadge(row['Vigencia'])}">${row['Vigencia'] || ''}</span></div></td>
+      <td>${wrap(row['Fecha de Elaboración'])}</td>
     `;
     tableBody.appendChild(tr);
   });
@@ -426,56 +416,16 @@ function renderTable() {
 }
 
 // ===== OBTENER CLASE DE VIGENCIA =====
-function classifyVigencia(vigenciaRaw) {
-  const normalized = String(vigenciaRaw ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim();
-
-  if (!normalized) return 'noEspecificadas';
-
-  if (normalized.includes('no aplica')) return 'noAplica';
-
-  if (
-    normalized.includes('no necesita') ||
-    normalized.includes('no requiere')
-  ) return 'noNecesita';
-
-  if (
-    normalized.includes('no vigente') ||
-    normalized.includes('no-vigente') ||
-    normalized.includes('vencid') ||
-    normalized.includes('expir') ||
-    normalized.includes('inactiv') ||
-    normalized === 'no'
-  ) return 'noVigentes';
-
-  if (
-    normalized.includes('vigente') ||
-    normalized.includes('activo') ||
-    normalized === 'si' ||
-    normalized === 'sí'
-  ) return 'vigentes';
-
-  return 'noEspecificadas';
-}
-
-function formatVigenciaLabel(category) {
-  if (category === 'vigentes') return 'Vigente';
-  if (category === 'noVigentes') return 'No vigente';
-  if (category === 'noNecesita') return 'No necesita';
-  if (category === 'noAplica') return 'No aplica';
-  return 'No especificada';
-}
-
 function getVigenciaBadge(vigencia) {
-  const category = classifyVigencia(vigencia);
-  if (category === 'vigentes') return 'bg-success';
-  if (category === 'noVigentes') return 'bg-danger';
-  if (category === 'noNecesita') return 'bg-warning';
-  if (category === 'noAplica') return 'bg-secondary';
-  return 'bg-secondary'; // noEspecificadas
+  if (!vigencia) return 'bg-secondary';
+  const vigiLower = vigencia.toLowerCase();
+  if (vigiLower.includes('vigente') || vigiLower.includes('activo') || vigiLower.includes('sí')) {
+    return 'bg-success';
+  }
+  if (vigiLower.includes('vencido') || vigiLower.includes('expirado') || vigiLower.includes('no')) {
+    return 'bg-danger';
+  }
+  return 'bg-warning';
 }
 
 // ===== RENDERIZAR TABLA DE NORMAS VIGENTES =====
@@ -492,11 +442,11 @@ function renderVigentesTable() {
   vigentes.forEach(row => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${row['RED CONOCIMIENTO'] || ''}</td>
-      <td>${row['NOMBRE_NCL'] || ''}</td>
-      <td>${row['Tipo de Norma'] || ''}</td>
-      <td>${row['Mesa Sectorial'] || ''}</td>
-      <td><span class="badge ${getVigenciaBadge(row['Vigencia'])}">${formatVigenciaLabel(classifyVigencia(row['Vigencia']))}</span></td>
+      <td>${wrap(row['RED CONOCIMIENTO'])}</td>
+      <td>${wrap(row['NOMBRE_NCL'])}</td>
+      <td>${wrap(row['Tipo de Norma'])}</td>
+      <td>${wrap(row['Mesa Sectorial'])}</td>
+      <td><div class="cell-content"><span class="badge bg-success">${row['Vigencia'] || ''}</span></div></td>
     `;
     vigentesTableBody.appendChild(tr);
   });
@@ -507,9 +457,9 @@ function renderVencidasTable() {
   vencidasTableBody.innerHTML = '';
   
   const vencidas = filteredData.filter(row => {
-      const vigencia = classifyVigencia(row['Vigencia']);
-      return vigencia === 'noVigentes';
-    });
+    const vigencia = row['Vigencia']?.toLowerCase() || '';
+    return vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no');
+  });
 
   if (vencidas.length === 0) {
     vencidasTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay normas vencidas</td></tr>';
@@ -517,15 +467,15 @@ function renderVencidasTable() {
   }
 
   vencidas.forEach(row => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${row['RED CONOCIMIENTO'] || ''}</td>
-        <td>${row['NOMBRE_NCL'] || ''}</td>
-        <td>${row['Tipo de Norma'] || ''}</td>
-        <td><span class="badge ${getVigenciaBadge(row['Vigencia'])}">${formatVigenciaLabel(classifyVigencia(row['Vigencia']))}</span></td>
-        <td>${row['Fecha de revisión'] || 'N/A'}</td>
-      `;
-      vencidasTableBody.appendChild(tr);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${wrap(row['RED CONOCIMIENTO'])}</td>
+      <td>${wrap(row['NOMBRE_NCL'])}</td>
+      <td>${wrap(row['Tipo de Norma'])}</td>
+      <td><div class="cell-content"><span class="badge bg-danger">${row['Vigencia'] || ''}</span></div></td>
+      <td>${wrap(row['Fecha de revisión'] || 'N/A')}</td>
+    `;
+    vencidasTableBody.appendChild(tr);
   });
 }
 
@@ -547,7 +497,7 @@ document.getElementById('applyFilters').addEventListener('click', () => {
   const tipoCompetencia = document.getElementById('filterTipoCompetencia').value;
   const vigencia = document.getElementById('filterVigencia').value;
   const codigoPrograma = document.getElementById('filterCodigoPrograma').value;
-  const ano = document.getElementById('filterAnoTable')?.value || '';
+  const ano = document.getElementById('filterAno').value;
   const fechaDesde = document.getElementById('filterFechaElaboracionDe').value;
   const fechaHasta = document.getElementById('filterFechaElaboracionHasta').value;
 
@@ -609,56 +559,11 @@ document.getElementById('clearFilters').addEventListener('click', () => {
   document.querySelectorAll('.filter-group select').forEach(select => select.value = '');
   document.getElementById('filterFechaElaboracionDe').value = '';
   document.getElementById('filterFechaElaboracionHasta').value = '';
-  
-  // Resetear filtro de año en tabla
-  const filterAnoTable = document.getElementById('filterAnoTable');
-  const countByYear = document.getElementById('countByYear');
-  if (filterAnoTable) filterAnoTable.value = '';
-  if (countByYear) countByYear.style.display = 'none';
-  
   filteredData = [...allData];
   currentPage = 1;
   renderTable();
   updateStats();
 });
-
-// ===== FILTRO POR AÑO EN TABLA =====
-const filterAnoTable = document.getElementById('filterAnoTable');
-const countByYear = document.getElementById('countByYear');
-
-if (filterAnoTable) {
-  filterAnoTable.addEventListener('change', () => {
-    const anoSeleccionado = filterAnoTable.value;
-    
-    if (anoSeleccionado) {
-      // Filtrar por año
-      filteredData = allData.filter(row => {
-        const fecha = row['Fecha de Elaboración'];
-        if (fecha) {
-          const ano = new Date(fecha).getFullYear();
-          return ano.toString() === anoSeleccionado;
-        }
-        return false;
-      });
-      
-      // Mostrar contador
-      if (countByYear) {
-        countByYear.textContent = `${filteredData.length} registro${filteredData.length !== 1 ? 's' : ''}`;
-        countByYear.style.display = 'inline-block';
-      }
-    } else {
-      // Mostrar todos
-      filteredData = [...allData];
-      if (countByYear) {
-        countByYear.style.display = 'none';
-      }
-    }
-    
-    currentPage = 1;
-    renderTable();
-    updateStats();
-  });
-}
 
 // ===== EXPORTAR A EXCEL =====
 document.getElementById('exportExcel').addEventListener('click', () => {
@@ -1026,11 +931,16 @@ document.getElementById('inputPageNumber')?.addEventListener('keydown', (e) => {
 
 // ==================== SECCIÓN 6: GRÁFICAS Y ESTADÍSTICAS ====================
 
+<<<<<<< HEAD
 // ===== GRÁFICA CIRCULAR: VIGENTES | NO VIGENTES | NO NECESITA | NO APLICA =====
+=======
+// ===== GRÁFICA CIRCULAR: VIGENTES vs NO VIGENTES =====
+>>>>>>> beb93b3fef3ac2540639200a727a53f3370ff8a8
 function imprimirGraficaTipoNorma(data){
-  // Contar normas por estado de vigencia
+  // Contar normas vigentes, no vigentes y no especificadas
   let vigentes = 0;
   let noVigentes = 0;
+<<<<<<< HEAD
   let noNecesita = 0;
   let noAplica = 0;
 
@@ -1055,20 +965,71 @@ function imprimirGraficaTipoNorma(data){
     `No Aplica (${noAplica})`
   ];
   const finalColors = ['#28a745', '#dc3545', '#ffc107', '#6c757d'];
+=======
+  let noEspecificadas = 0;
+  
+  (Array.isArray(data) ? data : []).forEach(r => {
+    const vigencia = r['Vigencia']?.toLowerCase() || '';
+    if (vigencia.includes('vigente') || vigencia.includes('activo') || vigencia.includes('sí')) {
+      vigentes++;
+    } else if (vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no')) {
+      noVigentes++;
+    } else if (vigencia.trim()) {
+      noEspecificadas++;
+    }
+  });
+  
+  // Preparar datos para la gráfica
+  const series = [];
+  const labels = [];
+  const colors = [];
+  
+  if (vigentes > 0) {
+    series.push(vigentes);
+    labels.push(`Vigentes (${vigentes})`);
+    colors.push('#28a745');
+  }
+  
+  if (noVigentes > 0) {
+    series.push(noVigentes);
+    labels.push(`No Vigentes (${noVigentes})`);
+    colors.push('#dc3545');
+  }
+  
+  if (noEspecificadas > 0) {
+    series.push(noEspecificadas);
+    labels.push(`No Especificadas (${noEspecificadas})`);
+    colors.push('#6c757d');
+  }
+  
+  // Si no hay datos, mostrar placeholder
+  if (series.length === 0) {
+    const el = document.querySelector('#chartTipoNorma');
+    if (el) el.innerHTML = '<p class="text-center text-muted">Sin datos disponibles</p>';
+    return;
+  }
+>>>>>>> beb93b3fef3ac2540639200a727a53f3370ff8a8
   
   const options = {
-    series: finalSeries,
-    chart: { type: 'pie', width: 420 },
-    labels: finalLabels,
-    colors: finalColors,
+    series: series,
+    chart: { 
+      type: 'pie',
+      width: 420
+    },
+    labels: labels,
+    colors: colors,
     plotOptions: {
       pie: {
         dataLabels: {
           enabled: true,
           minAngleToShowLabel: 0,
           formatter: function(val, opts) {
+<<<<<<< HEAD
             const count = opts.w.globals.series[opts.seriesIndex];
             return count > 0 ? count : ''; // mostrar cantidad si es mayor a 0
+=======
+            return opts.w.globals.series[opts.seriesIndex];
+>>>>>>> beb93b3fef3ac2540639200a727a53f3370ff8a8
           }
         }
       }
@@ -1099,61 +1060,131 @@ function imprimirGraficaTipoNorma(data){
       } 
     }]
   };
+  
+  const el = document.querySelector('#chartTipoNorma');
+  if (!el) return;
   el.innerHTML = '';
   const chart = new ApexCharts(el, options);
   chart.render();
 }
 
-// ===== GRÁFICA POR TIPO DE NORMA (VIGENCIA %) =====
+// ===== CREAR GRÁFICA DE DISTRIBUCIÓN POR TIPO DE NORMA CON VIGENCIA =====
 function imprimirGraficaTipoNormaVigencia(data) {
+  // Crear estructura: tipos[tipoNorma] = { vigentes: 0, noVigentes: 0 }
   const tipos = {};
-  (Array.isArray(data) ? data : []).forEach(row => {
-    const tipo = row['Tipo de Norma'] || 'Sin Tipo';
-    const cat = classifyVigencia(row['Vigencia']);
-    if (!tipos[tipo]) tipos[tipo] = { vigentes: 0, noVigentes: 0, total: 0 };
+  
+  (Array.isArray(data) ? data : []).forEach(r => {
+    const tipo = r['Tipo de Norma'] || 'Sin Tipo';
+    const vigencia = r['Vigencia']?.toLowerCase() || '';
+    
+    if (!tipos[tipo]) {
+      tipos[tipo] = { vigentes: 0, noVigentes: 0, total: 0 };
+    }
+    
     tipos[tipo].total++;
-    if (cat === 'vigentes') tipos[tipo].vigentes++;
-    else if (cat === 'noVigentes') tipos[tipo].noVigentes++;
+    
+    if (vigencia.includes('vigente') || vigencia.includes('activo') || vigencia.includes('sí')) {
+      tipos[tipo].vigentes++;
+    } else if (vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no')) {
+      tipos[tipo].noVigentes++;
+    }
   });
-
+  
+  // Ordenar por total descendente
   const entries = Object.entries(tipos).sort((a, b) => b[1].total - a[1].total);
-  const el = document.querySelector('#chartTipoNormaVigencia');
-  if (!el) return;
-
-  if (!entries.length) {
-    el.innerHTML = '<p class="text-center text-muted">No hay datos disponibles</p>';
+  
+  if (entries.length === 0) {
+    const el = document.querySelector('#chartTipoNormaVigencia');
+    if (el) {
+      el.innerHTML = '<p class="text-center text-muted">No hay datos disponibles</p>';
+    }
     return;
   }
-
+  
+  // Preparar datos para el gráfico de barras apiladas
   const labels = entries.map(e => e[0]);
-  const vigentesData = entries.map(e => e[1].total ? Math.round((e[1].vigentes / e[1].total) * 100) : 0);
-  const noVigentesData = entries.map(e => e[1].total ? Math.round((e[1].noVigentes / e[1].total) * 100) : 0);
-
+  const vigentesData = entries.map(e => {
+    const porcentaje = e[1].total > 0 ? (e[1].vigentes / e[1].total) * 100 : 0;
+    return Math.round(porcentaje);
+  });
+  
+  const noVigentesData = entries.map(e => {
+    const porcentaje = e[1].total > 0 ? (e[1].noVigentes / e[1].total) * 100 : 0;
+    return Math.round(porcentaje);
+  });
+  
   const options = {
     series: [
-      { name: 'Vigentes (%)', data: vigentesData },
-      { name: 'No Vigentes (%)', data: noVigentesData }
+      {
+        name: 'Vigentes (%)',
+        data: vigentesData
+      },
+      {
+        name: 'No Vigentes (%)',
+        data: noVigentesData
+      }
     ],
-    chart: { type: 'bar', height: 350, stacked: true, stackType: '100%' },
+    chart: {
+      type: 'bar',
+      height: 350,
+      stacked: true,
+      stackType: '100%'
+    },
     colors: ['#28a745', '#dc3545'],
     plotOptions: {
       bar: {
         horizontal: false,
-        dataLabels: { enabled: true, formatter: (val) => `${val}%` }
+        dataLabels: {
+          enabled: true,
+          formatter: function(val) {
+            return val + '%';
+          }
+        }
       }
     },
-    xaxis: { categories: labels, title: { text: 'Tipo de Norma' } },
-    yaxis: { title: { text: 'Porcentaje (%)' }, max: 100 },
-    legend: { position: 'bottom' },
-    tooltip: { y: { formatter: (val) => `${val}%` } },
-    responsive: [{ breakpoint: 480, options: { chart: { height: 300 }, xaxis: { labels: { rotate: -45 } } } }]
+    xaxis: {
+      categories: labels,
+      title: {
+        text: 'Tipo de Norma'
+      }
+    },
+    yaxis: {
+      title: {
+        text: 'Porcentaje (%)'
+      },
+      max: 100
+    },
+    legend: {
+      position: 'bottom'
+    },
+    tooltip: {
+      y: {
+        formatter: function (val) {
+          return val + '%';
+        }
+      }
+    },
+    responsive: [
+      {
+        breakpoint: 480,
+        options: {
+          chart: { height: 300 },
+          xaxis: {
+            labels: {
+              rotate: -45
+            }
+          }
+        }
+      }
+    ]
   };
-
+  
+  const el = document.querySelector('#chartTipoNormaVigencia');
+  if (!el) return;
   el.innerHTML = '';
   const chart = new ApexCharts(el, options);
   chart.render();
 }
-
 if (allData.length > 0) {
   populateFilters();
   renderTable();

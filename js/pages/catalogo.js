@@ -36,6 +36,60 @@ function saveDataToMemory() {
 allData = loadDataFromMemory();
 filteredData = [...allData];
 
+
+
+async function loadInitialData() {
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const tableContainer = document.getElementById('tableContainer');
+    
+    // Si no hay datos en memoria, mostrar loading
+    if (allData.length === 0) {
+        if (loadingIndicator) loadingIndicator.style.display = 'block';
+        if (tableContainer) tableContainer.style.display = 'none';
+    }
+
+    try {
+        console.log('Cargando catálogo desde API...');
+        const data = await catalogoService.obtenerTodosProgramas();
+        
+        if (Array.isArray(data) && data.length > 0) {
+            console.log(`Recibidos ${data.length} registros del API`);
+            allData = data;
+            filteredData = [...allData];
+            saveDataToMemory();
+            
+            extractColumns();
+            populateFilters();
+            renderTable();
+            updateStats();
+        } else {
+            console.log('API retornó lista vacía');
+            if (allData.length === 0) {
+                 renderTable(); // Para mostrar "No resultados"
+            }
+        }
+    } catch (error) {
+        console.error('Error al cargar datos iniciales:', error);
+        if (allData.length === 0) {
+             // Si falla y no hay datos, mostrar error en tabla
+             const tableBody = document.getElementById('tableBody');
+             if (tableBody) {
+                 tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="100" class="text-center text-danger py-5">
+                            <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                            <p>Error al cargar datos del servidor.</p>
+                            <small>${error.message}</small>
+                        </td>
+                    </tr>`;
+             }
+        }
+    } finally {
+        if (loadingIndicator) loadingIndicator.style.display = 'none';
+        if (tableContainer) tableContainer.style.display = 'block';
+    }
+}
+
 // ===== ELEMENTOS DEL DOM =====
 const uploadZone = document.getElementById('uploadZone');
 const fileInput = document.getElementById('fileInput');
@@ -83,7 +137,7 @@ function processFile(file) {
 
   // UI: Iniciar tarea de subida
   const taskId = addUploadTask(file);
-  showLoadingOverlay(true);
+  // showLoadingOverlay(true); // Desactivado para permitir trabajo en segundo plano
 
   // Subir archivo a la API con progreso
   catalogoService.uploadExcelCatalogoWithProgress(file, (percent) => {
@@ -105,7 +159,7 @@ function processFile(file) {
         console.warn('La API no devolvió los datos procesados, leyendo localmente...');
         readFileLocally(file);
         completeUploadTask(taskId, true, 'Subido (Procesando local)');
-        showLoadingOverlay(false);
+        // showLoadingOverlay(false);
         return;
     }
 
@@ -136,7 +190,7 @@ function processFile(file) {
       alert('Error al subir el archivo: ' + (error.message || 'Error desconocido'));
     })
     .finally(() => {
-      showLoadingOverlay(false);
+      // showLoadingOverlay(false);
     });
   }
   
@@ -366,6 +420,15 @@ function populateFilters() {
   });
 }
 
+// Helper para envolver contenido de celda
+const wrap = (text) => {
+    const div = document.createElement('div');
+    div.className = 'cell-content';
+    div.title = text || '';
+    div.textContent = text || '';
+    return div;
+};
+
 // ===== RENDERIZAR TABLA PRINCIPAL =====
 function renderTable() {
   // Renderizar encabezado
@@ -398,14 +461,7 @@ function renderTable() {
     const tr = document.createElement('tr');
     tableColumns.forEach(column => {
       const td = document.createElement('td');
-      
-      // Crear contenedor con scroll para contenido largo
-      const div = document.createElement('div');
-      div.className = 'cell-content';
-      div.textContent = row[column] || '';
-      div.title = row[column] || ''; // Tooltip nativo para ver todo el contenido
-      
-      td.appendChild(div);
+      td.appendChild(wrap(row[column]));
       tr.appendChild(td);
     });
     tableBody.appendChild(tr);
@@ -477,97 +533,182 @@ document.querySelectorAll('.btn-tab').forEach(btn => {
     
     document.querySelectorAll('.sub-table').forEach(t => t.classList.remove('active'));
     document.getElementById(`table-${btn.dataset.tab}`).classList.add('active');
+    
+    if (btn.dataset.tab === 'stats') {
+        renderStatsUI();
+    }
   });
 });
 
-// ===== BOTÓN DE ESTADÍSTICAS =====
+// ===== BOTÓN DE ESTADÍSTICAS (ACCESO DIRECTO) =====
 document.getElementById('btnStats').addEventListener('click', () => {
+    // Activar tab de estadísticas
+    const tabStats = document.querySelector('.btn-tab[data-tab="stats"]');
+    if (tabStats) tabStats.click();
+});
+
+// ===== RENDERIZAR INTERFAZ DE ESTADÍSTICAS =====
+function renderStatsUI() {
   const stats = calculateStats();
   
   statsContent.innerHTML = `
     <div class="row">
-      <div class="col-md-4">
-        <div class="card text-center mb-3">
+      <div class="col-md-3">
+        <div class="card text-center mb-3 shadow-sm">
           <div class="card-body">
-            <h5 class="card-title">Total Programas</h5>
+            <h6 class="card-title text-muted">Total Programas</h6>
             <h2 class="text-primary">${stats.totalProgramas}</h2>
           </div>
         </div>
       </div>
-      <div class="col-md-4">
-        <div class="card text-center mb-3">
+      <div class="col-md-3">
+        <div class="card text-center mb-3 shadow-sm">
           <div class="card-body">
-            <h5 class="card-title">Centros</h5>
+            <h6 class="card-title text-muted">Centros</h6>
             <h2 class="text-success">${stats.totalCentros}</h2>
           </div>
         </div>
       </div>
-      <div class="col-md-4">
-        <div class="card text-center mb-3">
+      <div class="col-md-3">
+        <div class="card text-center mb-3 shadow-sm">
           <div class="card-body">
-            <h5 class="card-title">Modalidades</h5>
+            <h6 class="card-title text-muted">Modalidades</h6>
             <h2 class="text-info">${stats.totalModalidades}</h2>
           </div>
         </div>
       </div>
-    </div>
-    <div class="card">
-      <div class="card-header bg-primary text-white">
-        <strong>Resumen por Centro</strong>
+      <div class="col-md-3">
+        <div class="card text-center mb-3 shadow-sm">
+          <div class="card-body">
+            <h6 class="card-title text-muted">Niveles</h6>
+            <h2 class="text-warning">${stats.totalNiveles}</h2>
+          </div>
+        </div>
       </div>
-      <div class="card-body">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th>Centro</th>
-              <th>Programas</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${stats.porCentro.map(c => `
-              <tr>
-                <td>${c.centro}</td>
-                <td>${c.programas}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card shadow-sm mb-3">
+          <div class="card-header bg-white">
+            <strong class="text-primary"><i class="fas fa-university"></i> Programas por Centro</strong>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive" style="max-height: 300px;">
+              <table class="table table-sm table-striped mb-0">
+                <thead class="table-light sticky-top">
+                  <tr>
+                    <th>Centro</th>
+                    <th class="text-end">Programas</th>
+                    <th class="text-end">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${stats.porCentro.map(c => `
+                    <tr>
+                      <td>${c.centro}</td>
+                      <td class="text-end">${c.programas}</td>
+                      <td class="text-end">${((c.programas / stats.totalProgramas) * 100).toFixed(1)}%</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="card shadow-sm mb-3">
+          <div class="card-header bg-white">
+            <strong class="text-success"><i class="fas fa-layer-group"></i> Programas por Nivel</strong>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive" style="max-height: 300px;">
+              <table class="table table-sm table-striped mb-0">
+                <thead class="table-light sticky-top">
+                  <tr>
+                    <th>Nivel de Formación</th>
+                    <th class="text-end">Programas</th>
+                    <th class="text-end">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${stats.porNivel.map(n => `
+                    <tr>
+                      <td>${n.nivel}</td>
+                      <td class="text-end">${n.programas}</td>
+                      <td class="text-end">${((n.programas / stats.totalProgramas) * 100).toFixed(1)}%</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   `;
-});
+}
 
 // ===== CALCULAR ESTADÍSTICAS =====
 function calculateStats() {
   const totalProgramas = filteredData.length;
+  if (totalProgramas === 0) {
+      return { 
+          totalProgramas: 0, 
+          totalCentros: 0, 
+          totalModalidades: 0, 
+          totalNiveles: 0,
+          porCentro: [],
+          porNivel: []
+      };
+  }
   
-  // Buscar campo de centro
+  // Buscar campos dinámicamente
   const centroField = ['NOMBRE_CENTRO', 'Centro', 'Centro de Formación'].find(f => tableColumns.includes(f));
   const modalidadField = ['MODALIDAD_FORMACION', 'Modalidad'].find(f => tableColumns.includes(f));
+  const nivelField = ['NIVEL_FORMACION', 'Nivel', 'Nivel de Formación'].find(f => tableColumns.includes(f));
   
   const centros = {};
   const modalidades = new Set();
+  const niveles = {};
   
   filteredData.forEach(row => {
+    // Conteo por Centro
     if (centroField) {
       const centro = row[centroField] || 'Sin centro';
       centros[centro] = (centros[centro] || 0) + 1;
     }
+    
+    // Conteo por Modalidad
     if (modalidadField && row[modalidadField]) {
       modalidades.add(row[modalidadField]);
     }
+    
+    // Conteo por Nivel
+    if (nivelField) {
+      const nivel = row[nivelField] || 'Sin nivel';
+      niveles[nivel] = (niveles[nivel] || 0) + 1;
+    }
   });
 
-  const porCentro = Object.keys(centros).map(centro => ({
-    centro,
-    programas: centros[centro]
-  }));
+  // Convertir a arrays y ordenar
+  const porCentro = Object.keys(centros)
+    .map(centro => ({ centro, programas: centros[centro] }))
+    .sort((a, b) => b.programas - a.programas);
+    
+  const porNivel = Object.keys(niveles)
+    .map(nivel => ({ nivel, programas: niveles[nivel] }))
+    .sort((a, b) => b.programas - a.programas);
 
   return { 
     totalProgramas, 
     totalCentros: Object.keys(centros).length,
     totalModalidades: modalidades.size,
-    porCentro 
+    totalNiveles: Object.keys(niveles).length,
+    porCentro,
+    porNivel
   };
 }
 
@@ -726,87 +867,28 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// ===== CARGAR DATOS AL INICIAR =====
-async function loadInitialData() {
-  const loadingIndicator = document.getElementById('loadingIndicator');
-  const tableContainer = document.getElementById('tableContainer');
-  
-  try {
-    // Mostrar indicador de carga
-    if (loadingIndicator && tableContainer) {
-      loadingIndicator.style.display = 'block';
-      tableContainer.style.display = 'none';
-    }
-
-    console.log('Iniciando carga de datos desde la API...');
-    
-    // Primero intenta cargar desde la API
-    let programas = await catalogoService.obtenerTodosProgramas();
-    
-    console.log('Respuesta de la API:', programas);
-    console.log('Tipo de datos:', typeof programas);
-    console.log('Es array:', Array.isArray(programas));
-    
-    // Manejo flexible de la respuesta
-    if (programas) {
-      // Si es un objeto con propiedad 'data' o 'results' o 'items'
-      if (!Array.isArray(programas)) {
-        if (programas.data && Array.isArray(programas.data)) {
-          programas = programas.data;
-        } else if (programas.results && Array.isArray(programas.results)) {
-          programas = programas.results;
-        } else if (programas.items && Array.isArray(programas.items)) {
-          programas = programas.items;
-        } else {
-          // Intentar extraer el primer array encontrado
-          const firstArray = Object.values(programas).find(val => Array.isArray(val));
-          programas = firstArray || [];
-        }
-      }
-      
-      console.log('Datos procesados. Total:', programas.length);
-      
-      if (programas.length > 0) {
-        allData = programas;
-        filteredData = [...allData];
-        saveDataToMemory();
+// ===== INICIALIZACION =====
+// Inicializar columnas y filtros si hay datos
+if (allData.length > 0) {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            extractColumns();
+            populateFilters();
+            renderTable();
+            updateStats();
+        });
+    } else {
         extractColumns();
         populateFilters();
         renderTable();
         updateStats();
-        console.log(`✓ Se cargaron ${programas.length} programas desde la API`);
-      } else {
-        console.warn('⚠ La API no retornó datos. Usando datos guardados...');
-        // Si no hay datos en API, cargar desde sessionStorage
-        if (allData.length > 0) {
-          extractColumns();
-          populateFilters();
-          renderTable();
-          updateStats();
-        }
-      }
-    } else {
-      console.warn('⚠ Respuesta vacía de la API');
     }
-  } catch (error) {
-    console.error('✗ Error cargando datos iniciales:', error);
-    console.error('Detalles del error:', error.message);
-    // Si falla la API, usar datos guardados
-    if (allData.length > 0) {
-      console.log('Usando datos guardados en sessionStorage...');
-      extractColumns();
-      populateFilters();
-      renderTable();
-      updateStats();
-    }
-  } finally {
-    // Ocultar indicador de carga
-    if (loadingIndicator && tableContainer) {
-      loadingIndicator.style.display = 'none';
-      tableContainer.style.display = 'block';
-    }
-  }
 }
 
-// ===== INICIALIZACIÓN =====
-loadInitialData();
+// Cargar datos frescos del API
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadInitialData);
+} else {
+    loadInitialData();
+}
+
