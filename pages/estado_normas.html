@@ -228,6 +228,13 @@
         </div>
 
         <div class="filter-group">
+          <label>Año</label>
+          <select class="form-select form-select-sm" id="filterAno">
+            <option value="">Todos</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
           <label>Fecha de Elaboración</label>
           <div class="d-flex gap-2">
             <input type="date" class="form-control form-control-sm" id="filterFechaElaboracionDe" placeholder="Desde">
@@ -343,6 +350,10 @@
           <div id="statsContent"></div>
           <div class="mt-3">
             <div id="chartTipoNorma"></div>
+          </div>
+          <div class="mt-4">
+            <h6>Distribución por Tipo de Norma</h6>
+            <div id="chartTipoNormaVigencia"></div>
           </div>
         </div>
       </div>

@@ -1,3 +1,17 @@
+/**
+ * MÓDULO: ESTADO DE NORMAS
+ * Gestión de carga, filtrado, visualización y análisis de normas SENA
+ * 
+ * SECCIONES PRINCIPALES:
+ * 1. Importaciones y Variables Globales
+ * 2. Carga y Almacenamiento de Datos
+ * 3. Gestión de Archivos Excel
+ * 4. Renderización de Tablas
+ * 5. Filtros y Búsqueda
+ * 6. Gráficas y Estadísticas
+ * 7. Inicialización y Eventos
+ */
+
 // ===== IMPORTAR SERVICIOS =====
 import { estadoNormasService } from '../api/estado-normas.service.js';
 
@@ -21,6 +35,8 @@ function loadDataFromMemory() {
   return [];
 }
 
+// ==================== SECCIÓN 2: ALMACENAMIENTO DE DATOS ====================
+
 // ===== GUARDAR DATOS EN SESSIONSTORAGE =====
 function saveDataToMemory() {
   try {
@@ -36,7 +52,7 @@ function saveDataToMemory() {
 allData = loadDataFromMemory();
 filteredData = [...allData];
 
-// ===== ELEMENTOS DEL DOM =====
+// ==================== ELEMENTOS DEL DOM ====================
 const uploadZone = document.getElementById('uploadZone');
 const fileInput = document.getElementById('fileInput');
 const searchAll = document.getElementById('searchAll');
@@ -46,6 +62,8 @@ const vencidasTableBody = document.getElementById('vencidasTableBody');
 const statsContent = document.getElementById('statsContent');
 const totalRecords = document.getElementById('totalRecords');
 const filteredRecords = document.getElementById('filteredRecords');
+
+// ==================== SECCIÓN 3: GESTIÓN DE ARCHIVOS EXCEL ====================
 
 // ===== MANEJO DE CARGA DE ARCHIVOS =====
 uploadZone.addEventListener('click', () => fileInput.click());
@@ -314,6 +332,8 @@ function populateFilters() {
     filterCodigoPrograma: 'CODIGO PROGRAMA'
   };
 
+  // ==================== SECCIÓN 4: RENDERIZACIÓN DE TABLAS ====================
+  
   Object.keys(filters).forEach(filterId => {
     const select = document.getElementById(filterId);
     const field = filters[filterId];
@@ -327,6 +347,29 @@ function populateFilters() {
       select.appendChild(option);
     });
   });
+
+  // Poblar filtro de año
+  const selectAno = document.getElementById('filterAno');
+  if (selectAno) {
+    const anos = new Set();
+    allData.forEach(item => {
+      const fecha = item['Fecha de Elaboración'];
+      if (fecha) {
+        const ano = new Date(fecha).getFullYear();
+        if (!isNaN(ano)) {
+          anos.add(ano);
+        }
+      }
+    });
+    
+    selectAno.innerHTML = '<option value="">Todos</option>';
+    [...anos].sort((a, b) => b - a).forEach(ano => {
+      const option = document.createElement('option');
+      option.value = ano;
+      option.textContent = ano;
+      selectAno.appendChild(option);
+    });
+  }
 }
 
 // ===== RENDERIZAR TABLA PRINCIPAL =====
@@ -367,6 +410,8 @@ function renderTable() {
 
   renderVigentesTable();
   renderVencidasTable();
+  imprimirGraficaTipoNorma(filteredData);
+  imprimirGraficaTipoNormaVigencia(filteredData);
   renderPagination();
 }
 
@@ -437,6 +482,8 @@ function renderVencidasTable() {
   });
 }
 
+// ==================== SECCIÓN 5: FILTROS Y BÚSQUEDA ====================
+
 // ===== ACTUALIZAR ESTADÍSTICAS =====
 function updateStats() {
   totalRecords.textContent = allData.length;
@@ -453,6 +500,7 @@ document.getElementById('applyFilters').addEventListener('click', () => {
   const tipoCompetencia = document.getElementById('filterTipoCompetencia').value;
   const vigencia = document.getElementById('filterVigencia').value;
   const codigoPrograma = document.getElementById('filterCodigoPrograma').value;
+  const ano = document.getElementById('filterAno').value;
   const fechaDesde = document.getElementById('filterFechaElaboracionDe').value;
   const fechaHasta = document.getElementById('filterFechaElaboracionHasta').value;
 
@@ -479,6 +527,18 @@ document.getElementById('applyFilters').addEventListener('click', () => {
     
     const matchCodigoPrograma = !codigoPrograma || row['CODIGO PROGRAMA'] === codigoPrograma;
     
+    // Filtro por año
+    let matchAno = true;
+    if (ano) {
+      const fecha = row['Fecha de Elaboración'];
+      if (fecha) {
+        const anoFecha = new Date(fecha).getFullYear();
+        matchAno = anoFecha.toString() === ano;
+      } else {
+        matchAno = false;
+      }
+    }
+    
     // Filtro fecha elaboración
     let matchFecha = true;
     if (fechaDesde || fechaHasta) {
@@ -488,7 +548,7 @@ document.getElementById('applyFilters').addEventListener('click', () => {
     }
 
     return matchSearch && matchRed && matchNombre && matchTipo && 
-           matchMesa && matchCompetencia && matchVigencia && matchCodigoPrograma && matchFecha;
+           matchMesa && matchCompetencia && matchVigencia && matchCodigoPrograma && matchAno && matchFecha;
   });
 
   currentPage = 1;
@@ -592,10 +652,15 @@ document.getElementById('btnStats').addEventListener('click', () => {
           <h6 class="mb-2">Distribución por Tipo de Norma</h6>
           <div id="chartTipoNorma"></div>
         </div>
+        <div class="mt-4">
+          <h6 class="mb-2">Vigentes vs No Vigentes por Tipo de Norma</h6>
+          <div id="chartTipoNormaVigencia"></div>
+        </div>
       </div>
     </div>
   `;
   imprimirGraficaTipoNorma(filteredData);
+  imprimirGraficaTipoNormaVigencia(filteredData);
 });
 
 // ===== CALCULAR ESTADÍSTICAS =====
@@ -867,27 +932,221 @@ document.getElementById('inputPageNumber')?.addEventListener('keydown', (e) => {
   }
 });
 
-// ===== CREAR GRÁFICA DE TIPO DE NORMA =====
+// ==================== SECCIÓN 6: GRÁFICAS Y ESTADÍSTICAS ====================
+
+// ===== GRÁFICA CIRCULAR: VIGENTES vs NO VIGENTES =====
 function imprimirGraficaTipoNorma(data){
-  const tipos = {};
+  // Contar normas vigentes, no vigentes y no especificadas
+  let vigentes = 0;
+  let noVigentes = 0;
+  let noEspecificadas = 0;
+  
   (Array.isArray(data) ? data : []).forEach(r => {
-    const tipo = r['Tipo de Norma'] || 'Sin Tipo';
-    tipos[tipo] = (tipos[tipo] || 0) + 1;
+    const vigencia = r['Vigencia']?.toLowerCase() || '';
+    if (vigencia.includes('vigente') || vigencia.includes('activo') || vigencia.includes('sí')) {
+      vigentes++;
+    } else if (vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no')) {
+      noVigentes++;
+    } else if (vigencia.trim()) {
+      noEspecificadas++;
+    }
   });
-  const entries = Object.entries(tipos).sort((a,b) => b[1]-a[1]);
-  const labels = entries.map(e => e[0]);
-  const series = entries.map(e => e[1]);
+  
+  // Preparar datos para la gráfica
+  const series = [];
+  const labels = [];
+  const colors = [];
+  
+  if (vigentes > 0) {
+    series.push(vigentes);
+    labels.push(`Vigentes (${vigentes})`);
+    colors.push('#28a745');
+  }
+  
+  if (noVigentes > 0) {
+    series.push(noVigentes);
+    labels.push(`No Vigentes (${noVigentes})`);
+    colors.push('#dc3545');
+  }
+  
+  if (noEspecificadas > 0) {
+    series.push(noEspecificadas);
+    labels.push(`No Especificadas (${noEspecificadas})`);
+    colors.push('#6c757d');
+  }
+  
+  // Si no hay datos, mostrar placeholder
+  if (series.length === 0) {
+    const el = document.querySelector('#chartTipoNorma');
+    if (el) el.innerHTML = '<p class="text-center text-muted">Sin datos disponibles</p>';
+    return;
+  }
+  
   const options = {
-    series: series.length ? series : [10, 8, 6],
-    chart: { width: 420, type: 'pie' },
-    labels: labels.length ? labels : ['Tipo A','Tipo B','Tipo C'],
-    responsive: [{ breakpoint: 480, options: { chart: { width: 260 }, legend: { position: 'bottom' } } }]
+    series: series,
+    chart: { 
+      type: 'pie',
+      width: 420
+    },
+    labels: labels,
+    colors: colors,
+    plotOptions: {
+      pie: {
+        dataLabels: {
+          enabled: true,
+          formatter: function(val, opts) {
+            return opts.w.globals.series[opts.seriesIndex];
+          }
+        }
+      }
+    },
+    legend: {
+      position: 'bottom'
+    },
+    tooltip: {
+      y: {
+        formatter: function (val) {
+          return val + ' normas';
+        }
+      }
+    },
+    responsive: [{ 
+      breakpoint: 480, 
+      options: { 
+        chart: { width: 260 }, 
+        legend: { position: 'bottom' }
+      } 
+    }]
   };
+  
   const el = document.querySelector('#chartTipoNorma');
   if (!el) return;
   el.innerHTML = '';
   const chart = new ApexCharts(el, options);
   chart.render();
+}
+
+// ===== CREAR GRÁFICA DE DISTRIBUCIÓN POR TIPO DE NORMA CON VIGENCIA =====
+function imprimirGraficaTipoNormaVigencia(data) {
+  // Crear estructura: tipos[tipoNorma] = { vigentes: 0, noVigentes: 0 }
+  const tipos = {};
+  
+  (Array.isArray(data) ? data : []).forEach(r => {
+    const tipo = r['Tipo de Norma'] || 'Sin Tipo';
+    const vigencia = r['Vigencia']?.toLowerCase() || '';
+    
+    if (!tipos[tipo]) {
+      tipos[tipo] = { vigentes: 0, noVigentes: 0, total: 0 };
+    }
+    
+    tipos[tipo].total++;
+    
+    if (vigencia.includes('vigente') || vigencia.includes('activo') || vigencia.includes('sí')) {
+      tipos[tipo].vigentes++;
+    } else if (vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no')) {
+      tipos[tipo].noVigentes++;
+    }
+  });
+  
+  // Ordenar por total descendente
+  const entries = Object.entries(tipos).sort((a, b) => b[1].total - a[1].total);
+  
+  if (entries.length === 0) {
+    const el = document.querySelector('#chartTipoNormaVigencia');
+    if (el) {
+      el.innerHTML = '<p class="text-center text-muted">No hay datos disponibles</p>';
+    }
+    return;
+  }
+  
+  // Preparar datos para el gráfico de barras apiladas
+  const labels = entries.map(e => e[0]);
+  const vigentesData = entries.map(e => {
+    const porcentaje = e[1].total > 0 ? (e[1].vigentes / e[1].total) * 100 : 0;
+    return Math.round(porcentaje);
+  });
+  
+  const noVigentesData = entries.map(e => {
+    const porcentaje = e[1].total > 0 ? (e[1].noVigentes / e[1].total) * 100 : 0;
+    return Math.round(porcentaje);
+  });
+  
+  const options = {
+    series: [
+      {
+        name: 'Vigentes (%)',
+        data: vigentesData
+      },
+      {
+        name: 'No Vigentes (%)',
+        data: noVigentesData
+      }
+    ],
+    chart: {
+      type: 'bar',
+      height: 350,
+      stacked: true,
+      stackType: '100%'
+    },
+    colors: ['#28a745', '#dc3545'],
+    plotOptions: {
+      bar: {
+        horizontal: false,
+        dataLabels: {
+          enabled: true,
+          formatter: function(val) {
+            return val + '%';
+          }
+        }
+      }
+    },
+    xaxis: {
+      categories: labels,
+      title: {
+        text: 'Tipo de Norma'
+      }
+    },
+    yaxis: {
+      title: {
+        text: 'Porcentaje (%)'
+      },
+      max: 100
+    },
+    legend: {
+      position: 'bottom'
+    },
+    tooltip: {
+      y: {
+        formatter: function (val) {
+          return val + '%';
+        }
+      }
+    },
+    responsive: [
+      {
+        breakpoint: 480,
+        options: {
+          chart: { height: 300 },
+          xaxis: {
+            labels: {
+              rotate: -45
+            }
+          }
+        }
+      }
+    ]
+  };
+  
+  const el = document.querySelector('#chartTipoNormaVigencia');
+  if (!el) return;
+  el.innerHTML = '';
+  const chart = new ApexCharts(el, options);
+  chart.render();
+}
+if (allData.length > 0) {
+  populateFilters();
+  renderTable();
+  updateStats();
 }
 
 // ===== CARGAR DATOS DESDE LA API =====
