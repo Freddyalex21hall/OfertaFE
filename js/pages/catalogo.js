@@ -110,53 +110,66 @@ function processFile(file) {
     }
 
     if (programas.length > 0) {
-      allData = programas;
-      filteredData = [...allData];
-      saveDataToMemory();
-      extractColumns();
-      populateFilters();
-      renderTable();
-      updateStats();
-      
-      completeUploadTask(taskId, true, 'Completado');
-      alert(`✓ Se cargaron ${programas.length} registros exitosamente.`);
-    } else {
-      completeUploadTask(taskId, true, 'Sin datos nuevos');
-      alert('El archivo se subió pero no se encontraron registros nuevos.');
-    }
-  })
-  .catch((error) => {
-    console.error('Error al subir:', error);
-    completeUploadTask(taskId, false, error.message || 'Error');
-    alert('Error al subir el archivo: ' + (error.message || 'Error desconocido'));
-  })
-  .finally(() => {
-    showLoadingOverlay(false);
-  });
-}
+        allData = programas;
+        filteredData = [...allData];
+        saveDataToMemory();
+        extractColumns();
+        populateFilters();
+        renderTable();
+        updateStats();
+        
+        completeUploadTask(taskId, true, 'Completado');
+        // alert(`✓ Se cargaron ${programas.length} registros exitosamente.`);
+        showSuccessModal({
+            added: programas.length, // Asumimos carga completa
+            duplicates: 0,
+            total: programas.length
+        });
+      } else {
+        completeUploadTask(taskId, true, 'Sin datos nuevos');
+        alert('El archivo se subió pero no se encontraron registros nuevos.');
+      }
+    })
+    .catch((error) => {
+      console.error('Error al subir:', error);
+      completeUploadTask(taskId, false, error.message || 'Error');
+      alert('Error al subir el archivo: ' + (error.message || 'Error desconocido'));
+    })
+    .finally(() => {
+      showLoadingOverlay(false);
+    });
+  }
+  
+  function readFileLocally(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+          try {
+              const data = new Uint8Array(e.target.result);
+              const workbook = XLSX.read(data, { type: 'array' });
+              const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+              const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+              if (jsonData.length > 0) {
+                  const stats = addDataWithoutDuplicates(jsonData);
+                  saveDataToMemory();
+                  extractColumns();
+                  populateFilters();
+                  renderTable();
+                  updateStats();
+                  
+                  showSuccessModal({
+                      added: stats.addedCount,
+                      duplicates: stats.duplicateCount,
+                      total: stats.totalInSystem
+                  });
+              }
+          } catch (err) {
+              console.error('Error lectura local:', err);
+          }
+      };
+      reader.readAsArrayBuffer(file);
+  }
 
-function readFileLocally(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
-            if (jsonData.length > 0) {
-                addDataWithoutDuplicates(jsonData);
-                saveDataToMemory();
-                extractColumns();
-                populateFilters();
-                renderTable();
-                updateStats();
-            }
-        } catch (err) {
-            console.error('Error lectura local:', err);
-        }
-    };
-    reader.readAsArrayBuffer(file);
-}
+
 
 // ===== UPLOAD TRAY LOGIC =====
 const loadingOverlay = document.getElementById('loadingOverlay');

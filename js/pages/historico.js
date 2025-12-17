@@ -197,15 +197,28 @@ async function addUploadTask(file){
   try{
     await panelService.uploadExcelHistoricoWithProgress(file, (p)=>{ item.percent = p; renderUploads(); });
     item.status='procesando'; renderUploads();
+    
+    const prevCount = allData.length;
     await fetchHistoricoTodos();
+    
     item.percent = 100;
     item.status='completado'; item.message='Datos actualizados'; renderUploads();
     showUploadAlert('success','Archivo subido correctamente');
+    
+    // Mostrar modal de éxito
+    showSuccessModal({
+        added: Math.max(0, allData.length - prevCount),
+        duplicates: '-',
+        total: allData.length
+    });
   }catch(err){
     item.status='error'; item.message=err?.message||'Error al subir'; renderUploads();
     showUploadAlert('danger', item.message);
   }
 }
+
+// ===== MODAL DE ÉXITO =====
+
 
 // ===== PROCESAR ARCHIVO EXCEL =====
 async function processFile(file) {
@@ -348,6 +361,8 @@ function renderTable() {
   const pageData = filteredData.slice(start, end);
   console.log('[Historico][RenderTable] pageData sample:', pageData.slice(0, 3));
 
+  const wrap = (text) => `<div class="cell-content" title="${String(text || '').replace(/"/g, '&quot;')}">${text || ''}</div>`;
+
   pageData.forEach(row => {
     const tr = document.createElement('tr');
     const estado = getEstado(row.ESTADO_FICHA);
@@ -370,38 +385,38 @@ function renderTable() {
 
     tr.innerHTML = `
       <td><span class="semaphore ${estado.color}"></span></td>
-      <td>${row.CODIGO_REGIONAL || ''}</td>
-      <td>${row.NOMBRE_REGIONAL || ''}</td>
-      <td><strong>${row.FICHA || ''}</strong></td>
-      <td>${row.CODIGO_PROGRAMA || row.CODIGO_PROGRAMA_FORMACION || ''}</td>
-      <td>${row.CODIGO_CENTRO || ''}</td>
-      <td>${row.MODALIDAD_FORMACION || ''}</td>
-      <td>${row.JORNADA || ''}</td>
-      <td>${row.ETAPA_FICHA || ''}</td>
-      <td>${row.ESTADO_FICHA || ''}</td>
-      <td>${row.FECHA_INICIO || ''}</td>
-      <td>${row.FECHA_FIN || ''}</td>
-      <td>${row.CODIGO_MUNICIPIO || ''}</td>
-      <td>${row.CODIGO_ESTRATEGIA || ''}</td>
-      <td>${row.CUPO_ASIGNADO ?? ''}</td>
-      <td><span class="badge bg-primary">${row.MATRICULADOS ?? 0}</span></td>
-      <td>${activos}</td>
-      <td>${row.HISTORICO ?? ''}</td>
-      <td>${row.CODIGO_FICHA_RELACIONADO || ''}</td>
-      <td>${inscritos}</td>
-      <td>${enTransito}</td>
-      <td>${formacion}</td>
-      <td>${induccion}</td>
-      <td>${condicionados}</td>
-      <td>${aplazados}</td>
-      <td>${retiradoVoluntario}</td>
-      <td>${cancelados}</td>
-      <td>${reprobados}</td>
-      <td>${noAptos}</td>
-      <td>${reingresados}</td>
-      <td>${porCertificar}</td>
-      <td><span class="badge bg-success">${certificados}</span></td>
-      <td>${trasladados}</td>
+      <td>${wrap(row.CODIGO_REGIONAL)}</td>
+      <td>${wrap(row.NOMBRE_REGIONAL)}</td>
+      <td><strong>${wrap(row.FICHA)}</strong></td>
+      <td>${wrap(row.CODIGO_PROGRAMA || row.CODIGO_PROGRAMA_FORMACION)}</td>
+      <td>${wrap(row.CODIGO_CENTRO)}</td>
+      <td>${wrap(row.MODALIDAD_FORMACION)}</td>
+      <td>${wrap(row.JORNADA)}</td>
+      <td>${wrap(row.ETAPA_FICHA)}</td>
+      <td>${wrap(row.ESTADO_FICHA)}</td>
+      <td>${wrap(row.FECHA_INICIO)}</td>
+      <td>${wrap(row.FECHA_FIN)}</td>
+      <td>${wrap(row.CODIGO_MUNICIPIO)}</td>
+      <td>${wrap(row.CODIGO_ESTRATEGIA)}</td>
+      <td>${wrap(row.CUPO_ASIGNADO)}</td>
+      <td><div class="cell-content"><span class="badge bg-primary">${row.MATRICULADOS ?? 0}</span></div></td>
+      <td>${wrap(activos)}</td>
+      <td>${wrap(row.HISTORICO)}</td>
+      <td>${wrap(row.CODIGO_FICHA_RELACIONADO)}</td>
+      <td>${wrap(inscritos)}</td>
+      <td>${wrap(enTransito)}</td>
+      <td>${wrap(formacion)}</td>
+      <td>${wrap(induccion)}</td>
+      <td>${wrap(condicionados)}</td>
+      <td>${wrap(aplazados)}</td>
+      <td>${wrap(retiradoVoluntario)}</td>
+      <td>${wrap(cancelados)}</td>
+      <td>${wrap(reprobados)}</td>
+      <td>${wrap(noAptos)}</td>
+      <td>${wrap(reingresados)}</td>
+      <td>${wrap(porCertificar)}</td>
+      <td><div class="cell-content"><span class="badge bg-success">${certificados}</span></div></td>
+      <td>${wrap(trasladados)}</td>
     `;
     tableBody.appendChild(tr);
   });
@@ -439,14 +454,16 @@ function renderActiveTable() {
   const end = start + PAGE_SIZE;
   const pageData = activeOffers.slice(start, end);
 
+  const wrap = (text) => `<div class="cell-content" title="${String(text || '').replace(/"/g, '&quot;')}">${text || ''}</div>`;
+
   pageData.forEach(row => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${row.NOMBRE_CENTRO || ''}</td>
-      <td>${row.PROGRAMA_FORMACION || ''}</td>
-      <td>${row.FICHA || ''}</td>
-      <td>${row.MATRICULADOS || 0}</td>
-      <td>${row.FORMACION || 0}</td>
+      <td>${wrap(row.NOMBRE_CENTRO)}</td>
+      <td>${wrap(row.PROGRAMA_FORMACION)}</td>
+      <td>${wrap(row.FICHA)}</td>
+      <td><div class="cell-content">${row.MATRICULADOS || 0}</div></td>
+      <td><div class="cell-content">${row.FORMACION || 0}</div></td>
     `;
     activeTableBody.appendChild(tr);
   });
@@ -468,6 +485,8 @@ function renderClosedTable() {
   const end = start + PAGE_SIZE;
   const pageData = closedOffers.slice(start, end);
 
+  const wrap = (text) => `<div class="cell-content" title="${String(text || '').replace(/"/g, '&quot;')}">${text || ''}</div>`;
+
   pageData.forEach(row => {
     const matriculados = parseInt(row.MATRICULADOS) || 0;
     const certificados = parseInt(row.CERTIFICADOS) || 0;
@@ -475,11 +494,11 @@ function renderClosedTable() {
     
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${row.NOMBRE_CENTRO || ''}</td>
-      <td>${row.PROGRAMA_FORMACION || ''}</td>
-      <td>${row.FICHA || ''}</td>
-      <td>${certificados}</td>
-      <td><span class="badge ${tasa >= 70 ? 'bg-success' : 'bg-warning'}">${tasa}%</span></td>
+      <td>${wrap(row.NOMBRE_CENTRO)}</td>
+      <td>${wrap(row.PROGRAMA_FORMACION)}</td>
+      <td>${wrap(row.FICHA)}</td>
+      <td><div class="cell-content">${certificados}</div></td>
+      <td><div class="cell-content"><span class="badge ${tasa >= 70 ? 'bg-success' : 'bg-warning'}">${tasa}%</span></div></td>
     `;
     closedTableBody.appendChild(tr);
   });
