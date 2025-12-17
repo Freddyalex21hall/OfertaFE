@@ -45,12 +45,30 @@ function saveDataToMemory() {
     const dataStr = JSON.stringify(allData);
     sessionStorage.setItem('senaEstadoNormasData', dataStr);
     sessionStorage.setItem('senaEstadoNormasLastUpdate', new Date().toISOString());
+    console.log('✓ Datos guardados en sessionStorage');
   } catch (e) {
-    console.error('Error al guardar datos:', e);
+    if (e.name === 'QuotaExceededError') {
+      console.warn('⚠️ sessionStorage lleno. Los datos funcionarán en memoria pero no se guardarán localmente.');
+    } else {
+      console.error('Error al guardar datos:', e);
+    }
+    // No lanzar error, solo advertencia. Continuar con ejecución.
   }
 }
 
 // ===== INICIALIZAR DATOS =====
+// Limpiar sessionStorage al inicio si está muy lleno
+try {
+  const testKey = '__test__';
+  sessionStorage.setItem(testKey, 'test');
+  sessionStorage.removeItem(testKey);
+} catch (e) {
+  if (e.name === 'QuotaExceededError') {
+    console.warn('⚠️ sessionStorage lleno. Limpiando datos anteriores...');
+    sessionStorage.clear();
+  }
+}
+
 allData = loadDataFromMemory();
 filteredData = [...allData];
 
