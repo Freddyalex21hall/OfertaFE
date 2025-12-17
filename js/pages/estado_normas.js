@@ -44,11 +44,7 @@ function saveDataToMemory() {
     sessionStorage.setItem('senaEstadoNormasData', dataStr);
     sessionStorage.setItem('senaEstadoNormasLastUpdate', new Date().toISOString());
   } catch (e) {
-    if (e.name === 'QuotaExceededError') {
-        console.warn('⚠️ Storage lleno: No se pudieron guardar los datos localmente. Funcionará en memoria RAM.');
-    } else {
-        console.error('Error al guardar datos:', e);
-    }
+    console.error('Error al guardar datos:', e);
   }
 }
 
@@ -430,15 +426,6 @@ function getVigenciaBadge(vigencia) {
     return 'bg-danger';
   }
   return 'bg-warning';
-}
-
-// ===== CLASIFICAR VIGENCIA =====
-function classifyVigencia(vigencia) {
-  if (!vigencia) return 'desconocido';
-  const v = vigencia.toLowerCase();
-  if (v.includes('vigente') || v.includes('activo') || v.includes('sí')) return 'vigentes';
-  if (v.includes('vencido') || v.includes('expirado') || v.includes('no') || v.includes('inactivo')) return 'vencidas';
-  return 'otro';
 }
 
 // ===== RENDERIZAR TABLA DE NORMAS VIGENTES =====
@@ -945,6 +932,8 @@ document.getElementById('inputPageNumber')?.addEventListener('keydown', (e) => {
 // ==================== SECCIÓN 6: GRÁFICAS Y ESTADÍSTICAS ====================
 
 // ===== GRÁFICA CIRCULAR: VIGENTES | NO VIGENTES | NO NECESITA | NO APLICA =====
+
+// ===== GRÁFICA CIRCULAR: VIGENTES vs NO VIGENTES =====
 
 function imprimirGraficaTipoNorma(data){
   // Contar normas vigentes, no vigentes y no especificadas
