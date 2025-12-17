@@ -42,6 +42,13 @@ function loadDataFromMemory() {
 // ===== GUARDAR DATOS EN SESSIONSTORAGE =====
 function saveDataToMemory() {
   try {
+    // NO guardar si los datos son muy grandes (más de 2MB estimado)
+    const estimatedSize = JSON.stringify(allData).length;
+    if (estimatedSize > 2000000) {
+      console.warn(`⚠️ Datos muy grandes (${(estimatedSize / 1000000).toFixed(1)}MB). No se guardarán en sessionStorage para evitar QuotaExceededError.`);
+      return;
+    }
+    
     const dataStr = JSON.stringify(allData);
     sessionStorage.setItem('senaEstadoNormasData', dataStr);
     sessionStorage.setItem('senaEstadoNormasLastUpdate', new Date().toISOString());
@@ -49,24 +56,29 @@ function saveDataToMemory() {
   } catch (e) {
     if (e.name === 'QuotaExceededError') {
       console.warn('⚠️ sessionStorage lleno. Los datos funcionarán en memoria pero no se guardarán localmente.');
+      // Intentar limpiar sessionStorage y continuar
+      try {
+        sessionStorage.clear();
+        console.log('✓ sessionStorage limpiado');
+      } catch (clearError) {
+        console.warn('No se pudo limpiar sessionStorage');
+      }
     } else {
       console.error('Error al guardar datos:', e);
     }
-    // No lanzar error, solo advertencia. Continuar con ejecución.
   }
 }
 
 // ===== INICIALIZAR DATOS =====
-// Limpiar sessionStorage al inicio si está muy lleno
+// Limpiar sessionStorage si está muy lleno
 try {
-  const testKey = '__test__';
-  sessionStorage.setItem(testKey, 'test');
-  sessionStorage.removeItem(testKey);
-} catch (e) {
-  if (e.name === 'QuotaExceededError') {
-    console.warn('⚠️ sessionStorage lleno. Limpiando datos anteriores...');
+  const storedData = sessionStorage.getItem('senaEstadoNormasData');
+  if (storedData && storedData.length > 1000000) { // Si hay más de 1MB almacenado
+    console.warn('⚠️ sessionStorage contiene datos muy grandes. Limpiando...');
     sessionStorage.clear();
   }
+} catch (e) {
+  console.warn('No se pudo verificar tamaño de sessionStorage');
 }
 
 allData = loadDataFromMemory();
@@ -737,80 +749,99 @@ document.getElementById('filterAnoTable')?.addEventListener('change', () => {
 });
 
 // ===== BOTÓN DE ESTADÍSTICAS =====
-document.getElementById('btnStats').addEventListener('click', () => {
-  const stats = calculateStats();
-  
-  statsContent.innerHTML = `
-    <div class="row">
-      <div class="col-md-4">
-        <div class="card text-center mb-3">
-          <div class="card-body">
-            <h5 class="card-title">Total de Normas</h5>
-            <h2 class="text-primary">${stats.totalNormas}</h2>
+const btnStats = document.getElementById('btnStats');
+if (btnStats) {
+  btnStats.addEventListener('click', () => {
+    console.log('Click en Estadísticas');
+    const stats = calculateStats();
+    
+    if (!statsContent) {
+      console.error('statsContent no encontrado en el DOM');
+      return;
+    }
+    
+    statsContent.innerHTML = `
+      <div class="row">
+        <div class="col-md-4">
+          <div class="card text-center mb-3">
+            <div class="card-body">
+              <h5 class="card-title">Total de Normas</h5>
+              <h2 class="text-primary">${stats.totalNormas}</h2>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card text-center mb-3">
+            <div class="card-body">
+              <h5 class="card-title">Normas Vigentes</h5>
+              <h2 class="text-success">${stats.totalVigentes}</h2>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card text-center mb-3">
+            <div class="card-body">
+              <h5 class="card-title">Normas Vencidas</h5>
+              <h2 class="text-danger">${stats.totalVencidas}</h2>
+            </div>
           </div>
         </div>
       </div>
-      <div class="col-md-4">
-        <div class="card text-center mb-3">
-          <div class="card-body">
-            <h5 class="card-title">Normas Vigentes</h5>
-            <h2 class="text-success">${stats.totalVigentes}</h2>
-          </div>
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <strong>Resumen por Red de Conocimiento</strong>
         </div>
-      </div>
-      <div class="col-md-4">
-        <div class="card text-center mb-3">
-          <div class="card-body">
-            <h5 class="card-title">Normas Vencidas</h5>
-            <h2 class="text-danger">${stats.totalVencidas}</h2>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-header bg-primary text-white">
-        <strong>Resumen por Red de Conocimiento</strong>
-      </div>
-      <div class="card-body">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th>Red de Conocimiento</th>
-              <th>Total Normas</th>
-              <th>Vigentes</th>
-              <th>Vencidas</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${stats.porRed.map(r => `
+        <div class="card-body">
+          <table class="table table-sm">
+            <thead>
               <tr>
-                <td>${r.red}</td>
-                <td>${r.total}</td>
-                <td><span class="badge bg-success">${r.vigentes}</span></td>
-                <td><span class="badge bg-danger">${r.vencidas}</span></td>
+                <th>Red de Conocimiento</th>
+                <th>Total Normas</th>
+                <th>Vigentes</th>
+                <th>Vencidas</th>
               </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        <div class="mt-3">
-          <h6 class="mb-2">Distribución por Tipo de Norma</h6>
-          <div id="chartTipoNorma" style="min-height: 400px; width: 100%;"></div>
-        </div>
-        <div class="mt-4">
-          <h6 class="mb-2">Vigentes vs No Vigentes por Tipo de Norma</h6>
-          <div id="chartTipoNormaVigencia" style="min-height: 400px; width: 100%;"></div>
+            </thead>
+            <tbody>
+              ${stats.porRed.map(r => `
+                <tr>
+                  <td>${r.red}</td>
+                  <td>${r.total}</td>
+                  <td><span class="badge bg-success">${r.vigentes}</span></td>
+                  <td><span class="badge bg-danger">${r.vencidas}</span></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="mt-3">
+            <h6 class="mb-2">Distribución por Tipo de Norma</h6>
+            <div id="chartTipoNorma" style="min-height: 400px; width: 100%;"></div>
+          </div>
+          <div class="mt-4">
+            <h6 class="mb-2">Vigentes vs No Vigentes por Tipo de Norma</h6>
+            <div id="chartTipoNormaVigencia" style="min-height: 400px; width: 100%;"></div>
+          </div>
         </div>
       </div>
-    </div>
-  `;
-  
-  // Renderizar gráficas con delay para asegurar DOM listo
-  setTimeout(() => {
-    console.log('Renderizando gráficas...');
-    imprimirGraficaTipoNorma(filteredData);
-    imprimirGraficaTipoNormaVigencia(filteredData);
-  }, 300);
-});
+    `;
+    
+    // Renderizar gráficas con delay para asegurar DOM listo
+    setTimeout(() => {
+      console.log('Renderizando gráficas...');
+      try {
+        imprimirGraficaTipoNorma(filteredData);
+      } catch (err) {
+        console.error('Error renderizando gráfica circular:', err);
+      }
+      try {
+        imprimirGraficaTipoNormaVigencia(filteredData);
+      } catch (err) {
+        console.error('Error renderizando gráfica de vigencia:', err);
+      }
+    }, 300);
+  });
+} else {
+  console.warn('⚠️ Botón #btnStats no encontrado');
+}
 
 // ===== CALCULAR ESTADÍSTICAS =====
 function calculateStats() {
@@ -1104,7 +1135,8 @@ function classifyVigencia(vigenciaRaw) {
 
 function imprimirGraficaTipoNorma(data){
   try {
-    // Contar normas vigentes, no vigentes y no especificadas
+    console.log('Iniciando gráfica circular con', data.length, 'registros');
+    
     let vigentes = 0;
     let noVigentes = 0;
     let noNecesita = 0;
@@ -1119,6 +1151,8 @@ function imprimirGraficaTipoNorma(data){
       else noAplica++;
     });
     
+    console.log('Conteos:', { vigentes, noVigentes, noNecesita, noAplica });
+    
     const finalSeries = [vigentes, noVigentes, noNecesita, noAplica];
     const finalLabels = [
       `Vigentes (${vigentes})`,
@@ -1130,17 +1164,27 @@ function imprimirGraficaTipoNorma(data){
     
     const el = document.querySelector('#chartTipoNorma');
     if (!el) {
-      console.warn('Contenedor #chartTipoNorma no encontrado');
+      console.error('❌ Contenedor #chartTipoNorma NO encontrado');
       return;
     }
     
-    el.innerHTML = '';
+    console.log('✓ Contenedor encontrado');
+    el.innerHTML = '<p class="text-center text-muted">Cargando gráfica...</p>';
+    
+    if (typeof ApexCharts === 'undefined') {
+      console.error('❌ ApexCharts no está cargado');
+      el.innerHTML = '<p class="text-danger">Error: ApexCharts no cargado</p>';
+      return;
+    }
+    
+    console.log('✓ ApexCharts disponible');
     
     const options = {
       series: finalSeries,
       chart: { 
         type: 'pie',
-        width: '100%'
+        width: '100%',
+        height: 400
       },
       labels: finalLabels,
       colors: finalColors,
@@ -1173,32 +1217,23 @@ function imprimirGraficaTipoNorma(data){
             return val + ' normas';
           }
         }
-      },
-      responsive: [{ 
-        breakpoint: 480, 
-        options: { 
-          chart: { width: '100%' }, 
-          legend: { position: 'bottom' }
-        } 
-      }]
+      }
     };
     
-    if (typeof ApexCharts !== 'undefined') {
-      const chart = new ApexCharts(el, options);
-      chart.render();
-      console.log('✓ Gráfica circular renderizada');
-    } else {
-      console.error('ApexCharts no está cargado');
-    }
+    el.innerHTML = '';
+    const chart = new ApexCharts(el, options);
+    chart.render();
+    console.log('✓ Gráfica circular renderizada exitosamente');
   } catch (error) {
-    console.error('Error al renderizar gráfica circular:', error);
+    console.error('❌ Error al renderizar gráfica circular:', error);
   }
 }
 
 // ===== CREAR GRÁFICA DE DISTRIBUCIÓN POR TIPO DE NORMA CON VIGENCIA =====
 function imprimirGraficaTipoNormaVigencia(data) {
   try {
-    // Crear estructura: tipos[tipoNorma] = { vigentes: 0, noVigentes: 0 }
+    console.log('Iniciando gráfica de vigencia con', data.length, 'registros');
+    
     const tipos = {};
     
     (Array.isArray(data) ? data : []).forEach(r => {
@@ -1218,21 +1253,29 @@ function imprimirGraficaTipoNormaVigencia(data) {
       }
     });
     
-    // Ordenar por total descendente
     const entries = Object.entries(tipos).sort((a, b) => b[1].total - a[1].total);
+    
+    console.log('Tipos encontrados:', entries.length);
     
     const el = document.querySelector('#chartTipoNormaVigencia');
     if (!el) {
-      console.warn('Contenedor #chartTipoNormaVigencia no encontrado');
+      console.error('❌ Contenedor #chartTipoNormaVigencia NO encontrado');
       return;
     }
+    
+    console.log('✓ Contenedor encontrado');
     
     if (entries.length === 0) {
       el.innerHTML = '<p class="text-center text-muted">No hay datos disponibles</p>';
       return;
     }
     
-    // Preparar datos para el gráfico de barras apiladas
+    if (typeof ApexCharts === 'undefined') {
+      console.error('❌ ApexCharts no está cargado');
+      el.innerHTML = '<p class="text-danger">Error: ApexCharts no cargado</p>';
+      return;
+    }
+    
     const labels = entries.map(e => e[0]);
     const vigentesData = entries.map(e => {
       const porcentaje = e[1].total > 0 ? (e[1].vigentes / e[1].total) * 100 : 0;
@@ -1296,31 +1339,14 @@ function imprimirGraficaTipoNormaVigencia(data) {
             return val + '%';
           }
         }
-      },
-      responsive: [
-        {
-          breakpoint: 480,
-          options: {
-            chart: { height: 300 },
-            xaxis: {
-              labels: {
-                rotate: -45
-              }
-            }
-          }
-        }
-      ]
+      }
     };
     
-    if (typeof ApexCharts !== 'undefined') {
-      const chart = new ApexCharts(el, options);
-      chart.render();
-      console.log('✓ Gráfica de distribución renderizada');
-    } else {
-      console.error('ApexCharts no está cargado');
-    }
+    const chart = new ApexCharts(el, options);
+    chart.render();
+    console.log('✓ Gráfica de vigencia renderizada exitosamente');
   } catch (error) {
-    console.error('Error al renderizar gráfica de vigencia:', error);
+    console.error('❌ Error al renderizar gráfica de vigencia:', error);
   }
 }
 if (allData.length > 0) {
