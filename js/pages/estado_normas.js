@@ -416,16 +416,46 @@ function renderTable() {
 }
 
 // ===== OBTENER CLASE DE VIGENCIA =====
+function classifyVigencia(vigenciaRaw) {
+  const normalized = String(vigenciaRaw ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+  if (!normalized) return 'noEspecificadas';
+
+  if (
+    normalized.includes('no necesita') ||
+    normalized.includes('no requiere') ||
+    normalized.includes('no aplica')
+  ) return 'noNecesita';
+
+  if (
+    normalized.includes('vigente') ||
+    normalized.includes('activo') ||
+    normalized === 'si' ||
+    normalized === 'sí'
+  ) return 'vigentes';
+
+  if (
+    normalized.includes('vencid') ||
+    normalized.includes('expir') ||
+    normalized.includes('inactiv') ||
+    normalized.includes('no vigente') ||
+    normalized.includes('no-vigente') ||
+    normalized === 'no'
+  ) return 'noVigentes';
+
+  return 'noEspecificadas';
+}
+
 function getVigenciaBadge(vigencia) {
-  if (!vigencia) return 'bg-secondary';
-  const vigiLower = vigencia.toLowerCase();
-  if (vigiLower.includes('vigente') || vigiLower.includes('activo') || vigiLower.includes('sí')) {
-    return 'bg-success';
-  }
-  if (vigiLower.includes('vencido') || vigiLower.includes('expirado') || vigiLower.includes('no')) {
-    return 'bg-danger';
-  }
-  return 'bg-warning';
+  const category = classifyVigencia(vigencia);
+  if (category === 'vigentes') return 'bg-success';
+  if (category === 'noVigentes') return 'bg-danger';
+  if (category === 'noNecesita') return 'bg-warning';
+  return 'bg-secondary'; // noEspecificadas
 }
 
 // ===== RENDERIZAR TABLA DE NORMAS VIGENTES =====
@@ -988,52 +1018,11 @@ function imprimirGraficaTipoNorma(data){
   let noEspecificadas = 0;
 
   (Array.isArray(data) ? data : []).forEach(r => {
-    const raw = r['Vigencia'] ?? '';
-    const vigencia = String(raw)
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .trim();
-
-    // Clasificación priorizada (primero 'no necesita')
-    if (vigencia) {
-      if (
-        vigencia.includes('no necesita') ||
-        vigencia.includes('no requiere') ||
-        vigencia.includes('no aplica')
-      ) {
-        noNecesita++;
-        return;
-      }
-
-      if (
-        vigencia.includes('vigente') ||
-        vigencia.includes('activo') ||
-        vigencia === 'si' ||
-        vigencia === 'sí'
-      ) {
-        vigentes++;
-        return;
-      }
-
-      if (
-        vigencia.includes('vencid') || // vencida, vencido
-        vigencia.includes('expir') ||   // expirada, expirado
-        vigencia.includes('inactiv') || // inactivo, inactiva
-        vigencia.includes('no vigente') ||
-        vigencia.includes('no-vigente') ||
-        vigencia === 'no'
-      ) {
-        noVigentes++;
-        return;
-      }
-
-      // Valor presente pero no reconocido
-      noEspecificadas++;
-    } else {
-      // Campo vacío
-      noEspecificadas++;
-    }
+    const cat = classifyVigencia(r['Vigencia']);
+    if (cat === 'vigentes') vigentes++;
+    else if (cat === 'noVigentes') noVigentes++;
+    else if (cat === 'noNecesita') noNecesita++;
+    else noEspecificadas++;
   });
   
   // Preparar datos para la gráfica
