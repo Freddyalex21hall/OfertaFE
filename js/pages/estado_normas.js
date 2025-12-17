@@ -347,6 +347,29 @@ function populateFilters() {
       select.appendChild(option);
     });
   });
+
+  // Poblar filtro de año
+  const selectAno = document.getElementById('filterAno');
+  if (selectAno) {
+    const anos = new Set();
+    allData.forEach(item => {
+      const fecha = item['Fecha de Elaboración'];
+      if (fecha) {
+        const ano = new Date(fecha).getFullYear();
+        if (!isNaN(ano)) {
+          anos.add(ano);
+        }
+      }
+    });
+    
+    selectAno.innerHTML = '<option value="">Todos</option>';
+    [...anos].sort((a, b) => b - a).forEach(ano => {
+      const option = document.createElement('option');
+      option.value = ano;
+      option.textContent = ano;
+      selectAno.appendChild(option);
+    });
+  }
 }
 
 // ===== RENDERIZAR TABLA PRINCIPAL =====
@@ -475,6 +498,7 @@ document.getElementById('applyFilters').addEventListener('click', () => {
   const tipoCompetencia = document.getElementById('filterTipoCompetencia').value;
   const vigencia = document.getElementById('filterVigencia').value;
   const codigoPrograma = document.getElementById('filterCodigoPrograma').value;
+  const ano = document.getElementById('filterAno').value;
   const fechaDesde = document.getElementById('filterFechaElaboracionDe').value;
   const fechaHasta = document.getElementById('filterFechaElaboracionHasta').value;
 
@@ -501,6 +525,18 @@ document.getElementById('applyFilters').addEventListener('click', () => {
     
     const matchCodigoPrograma = !codigoPrograma || row['CODIGO PROGRAMA'] === codigoPrograma;
     
+    // Filtro por año
+    let matchAno = true;
+    if (ano) {
+      const fecha = row['Fecha de Elaboración'];
+      if (fecha) {
+        const anoFecha = new Date(fecha).getFullYear();
+        matchAno = anoFecha.toString() === ano;
+      } else {
+        matchAno = false;
+      }
+    }
+    
     // Filtro fecha elaboración
     let matchFecha = true;
     if (fechaDesde || fechaHasta) {
@@ -510,7 +546,7 @@ document.getElementById('applyFilters').addEventListener('click', () => {
     }
 
     return matchSearch && matchRed && matchNombre && matchTipo && 
-           matchMesa && matchCompetencia && matchVigencia && matchCodigoPrograma && matchFecha;
+           matchMesa && matchCompetencia && matchVigencia && matchCodigoPrograma && matchAno && matchFecha;
   });
 
   currentPage = 1;
