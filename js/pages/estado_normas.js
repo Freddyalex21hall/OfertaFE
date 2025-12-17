@@ -396,14 +396,24 @@ function renderTable() {
 
   pageData.forEach(row => {
     const tr = document.createElement('tr');
+    const cat = classifyVigencia(row['Vigencia']);
+    const label = formatVigenciaLabel(cat);
 
     tr.innerHTML = `
-      <td>${wrap(row['RED CONOCIMIENTO'])}</td>
-      <td>${wrap(row['NOMBRE_NCL'])}</td>
-      <td>${wrap(row['CODIGO NCL'] || row['NCL CODIGO'])}</td>
-      <td>${wrap(row['Tipo de competencia'])}</td>
-      <td><div class="cell-content"><span class="badge ${getVigenciaBadge(row['Vigencia'])}">${row['Vigencia'] || ''}</span></div></td>
-      <td>${wrap(row['Fecha de Elaboración'])}</td>
+      <td>${row['RED CONOCIMIENTO'] || ''}</td>
+      <td>${row['NOMBRE_NCL'] || ''}</td>
+      <td>${row['CODIGO NCL'] || row['NCL CODIGO'] || ''}</td>
+      <td>${row['NCL VERSION'] || ''}</td>
+      <td>${row['Norma corte a NOVIEMBRE'] || ''}</td>
+      <td>${row['Versión'] || ''}</td>
+      <td>${row['Norma - Versión'] || ''}</td>
+      <td>${row['Mesa Sectorial'] || ''}</td>
+      <td>${row['Tipo de Norma'] || ''}</td>
+      <td>${row['Observación'] || ''}</td>
+      <td>${row['Fecha de revisión'] || ''}</td>
+      <td>${row['Tipo de competencia'] || ''}</td>
+      <td><span class="badge ${getVigenciaBadge(row['Vigencia'])}">${label}</span></td>
+      <td>${row['Fecha de Elaboración'] || ''}</td>
     `;
     tableBody.appendChild(tr);
   });
