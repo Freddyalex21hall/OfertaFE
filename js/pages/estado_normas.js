@@ -776,21 +776,22 @@ document.getElementById('btnStats').addEventListener('click', () => {
         </table>
         <div class="mt-3">
           <h6 class="mb-2">Distribución por Tipo de Norma</h6>
-          <div id="chartTipoNorma" style="min-height: 400px;"></div>
+          <div id="chartTipoNorma" style="min-height: 400px; width: 100%;"></div>
         </div>
         <div class="mt-4">
           <h6 class="mb-2">Vigentes vs No Vigentes por Tipo de Norma</h6>
-          <div id="chartTipoNormaVigencia" style="min-height: 400px;"></div>
+          <div id="chartTipoNormaVigencia" style="min-height: 400px; width: 100%;"></div>
         </div>
       </div>
     </div>
   `;
   
-  // Renderizar gráficas con un pequeño delay para asegurar que el DOM esté listo
+  // Renderizar gráficas con delay para asegurar DOM listo
   setTimeout(() => {
+    console.log('Renderizando gráficas...');
     imprimirGraficaTipoNorma(filteredData);
     imprimirGraficaTipoNormaVigencia(filteredData);
-  }, 100);
+  }, 300);
 });
 
 // ===== CALCULAR ESTADÍSTICAS =====
@@ -1084,206 +1085,225 @@ function classifyVigencia(vigenciaRaw) {
 // ===== GRÁFICA CIRCULAR: VIGENTES vs NO VIGENTES =====
 
 function imprimirGraficaTipoNorma(data){
-  // Contar normas vigentes, no vigentes y no especificadas
-  let vigentes = 0;
-  let noVigentes = 0;
+  try {
+    // Contar normas vigentes, no vigentes y no especificadas
+    let vigentes = 0;
+    let noVigentes = 0;
+    let noNecesita = 0;
+    let noAplica = 0;
 
-  let noNecesita = 0;
-  let noAplica = 0;
-
-  (Array.isArray(data) ? data : []).forEach(r => {
-    const cat = classifyVigencia(r['Vigencia']);
-    if (cat === 'vigentes') vigentes++;
-    else if (cat === 'noVigentes') noVigentes++;
-    else if (cat === 'noNecesita') noNecesita++;
-    else if (cat === 'noAplica') noAplica++;
-    else noAplica++; // noEspecificadas va a noAplica
-  });
-  
-  // Siempre mostrar las 4 categorías en el orden fijo
-  const finalSeries = [vigentes, noVigentes, noNecesita, noAplica];
-  const finalLabels = [
-    `Vigentes (${vigentes})`,
-    `No Vigentes (${noVigentes})`,
-    `No Necesita (${noNecesita})`,
-    `No Aplica (${noAplica})`
-  ];
-  const finalColors = ['#28a745', '#dc3545', '#ffc107', '#6c757d'];
-  
-  const options = {
-    series: finalSeries,
-    chart: { 
-      type: 'pie',
-      width: 420
-    },
-    labels: finalLabels,
-    colors: finalColors,
-    plotOptions: {
-      pie: {
-        dataLabels: {
-          enabled: true,
-          minAngleToShowLabel: 0,
-          formatter: function(val, opts) {
-
-            const count = opts.w.globals.series[opts.seriesIndex];
-            return count > 0 ? count : ''; // mostrar cantidad si es mayor a 0
-
-            return opts.w.globals.series[opts.seriesIndex];
-
+    (Array.isArray(data) ? data : []).forEach(r => {
+      const cat = classifyVigencia(r['Vigencia']);
+      if (cat === 'vigentes') vigentes++;
+      else if (cat === 'noVigentes') noVigentes++;
+      else if (cat === 'noNecesita') noNecesita++;
+      else if (cat === 'noAplica') noAplica++;
+      else noAplica++;
+    });
+    
+    const finalSeries = [vigentes, noVigentes, noNecesita, noAplica];
+    const finalLabels = [
+      `Vigentes (${vigentes})`,
+      `No Vigentes (${noVigentes})`,
+      `No Necesita (${noNecesita})`,
+      `No Aplica (${noAplica})`
+    ];
+    const finalColors = ['#28a745', '#dc3545', '#ffc107', '#6c757d'];
+    
+    const el = document.querySelector('#chartTipoNorma');
+    if (!el) {
+      console.warn('Contenedor #chartTipoNorma no encontrado');
+      return;
+    }
+    
+    el.innerHTML = '';
+    
+    const options = {
+      series: finalSeries,
+      chart: { 
+        type: 'pie',
+        width: '100%'
+      },
+      labels: finalLabels,
+      colors: finalColors,
+      plotOptions: {
+        pie: {
+          dataLabels: {
+            enabled: true,
+            minAngleToShowLabel: 0,
+            formatter: function(val, opts) {
+              const count = opts.w.globals.series[opts.seriesIndex];
+              return count > 0 ? count : '';
+            }
           }
         }
-      }
-    },
-    dataLabels: {
-      enabled: true,
-      style: {
-        fontSize: '12px',
-        fontWeight: 'bold'
-      }
-    },
-    legend: {
-      position: 'bottom',
-      show: true
-    },
-    tooltip: {
-      y: {
-        formatter: function (val) {
-          return val + ' normas';
+      },
+      dataLabels: {
+        enabled: true,
+        style: {
+          fontSize: '12px',
+          fontWeight: 'bold'
         }
-      }
-    },
-    responsive: [{ 
-      breakpoint: 480, 
-      options: { 
-        chart: { width: 260 }, 
-        legend: { position: 'bottom' }
-      } 
-    }]
-  };
-  
-  const el = document.querySelector('#chartTipoNorma');
-  if (!el) return;
-  el.innerHTML = '';
-  const chart = new ApexCharts(el, options);
-  chart.render();
+      },
+      legend: {
+        position: 'bottom',
+        show: true
+      },
+      tooltip: {
+        y: {
+          formatter: function (val) {
+            return val + ' normas';
+          }
+        }
+      },
+      responsive: [{ 
+        breakpoint: 480, 
+        options: { 
+          chart: { width: '100%' }, 
+          legend: { position: 'bottom' }
+        } 
+      }]
+    };
+    
+    if (typeof ApexCharts !== 'undefined') {
+      const chart = new ApexCharts(el, options);
+      chart.render();
+      console.log('✓ Gráfica circular renderizada');
+    } else {
+      console.error('ApexCharts no está cargado');
+    }
+  } catch (error) {
+    console.error('Error al renderizar gráfica circular:', error);
+  }
 }
 
 // ===== CREAR GRÁFICA DE DISTRIBUCIÓN POR TIPO DE NORMA CON VIGENCIA =====
 function imprimirGraficaTipoNormaVigencia(data) {
-  // Crear estructura: tipos[tipoNorma] = { vigentes: 0, noVigentes: 0 }
-  const tipos = {};
-  
-  (Array.isArray(data) ? data : []).forEach(r => {
-    const tipo = r['Tipo de Norma'] || 'Sin Tipo';
-    const vigencia = r['Vigencia']?.toLowerCase() || '';
+  try {
+    // Crear estructura: tipos[tipoNorma] = { vigentes: 0, noVigentes: 0 }
+    const tipos = {};
     
-    if (!tipos[tipo]) {
-      tipos[tipo] = { vigentes: 0, noVigentes: 0, total: 0 };
-    }
+    (Array.isArray(data) ? data : []).forEach(r => {
+      const tipo = r['Tipo de Norma'] || 'Sin Tipo';
+      const vigencia = r['Vigencia']?.toLowerCase() || '';
+      
+      if (!tipos[tipo]) {
+        tipos[tipo] = { vigentes: 0, noVigentes: 0, total: 0 };
+      }
+      
+      tipos[tipo].total++;
+      
+      if (vigencia.includes('vigente') || vigencia.includes('activo') || vigencia.includes('sí')) {
+        tipos[tipo].vigentes++;
+      } else if (vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no')) {
+        tipos[tipo].noVigentes++;
+      }
+    });
     
-    tipos[tipo].total++;
+    // Ordenar por total descendente
+    const entries = Object.entries(tipos).sort((a, b) => b[1].total - a[1].total);
     
-    if (vigencia.includes('vigente') || vigencia.includes('activo') || vigencia.includes('sí')) {
-      tipos[tipo].vigentes++;
-    } else if (vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no')) {
-      tipos[tipo].noVigentes++;
-    }
-  });
-  
-  // Ordenar por total descendente
-  const entries = Object.entries(tipos).sort((a, b) => b[1].total - a[1].total);
-  
-  if (entries.length === 0) {
     const el = document.querySelector('#chartTipoNormaVigencia');
-    if (el) {
-      el.innerHTML = '<p class="text-center text-muted">No hay datos disponibles</p>';
+    if (!el) {
+      console.warn('Contenedor #chartTipoNormaVigencia no encontrado');
+      return;
     }
-    return;
-  }
-  
-  // Preparar datos para el gráfico de barras apiladas
-  const labels = entries.map(e => e[0]);
-  const vigentesData = entries.map(e => {
-    const porcentaje = e[1].total > 0 ? (e[1].vigentes / e[1].total) * 100 : 0;
-    return Math.round(porcentaje);
-  });
-  
-  const noVigentesData = entries.map(e => {
-    const porcentaje = e[1].total > 0 ? (e[1].noVigentes / e[1].total) * 100 : 0;
-    return Math.round(porcentaje);
-  });
-  
-  const options = {
-    series: [
-      {
-        name: 'Vigentes (%)',
-        data: vigentesData
-      },
-      {
-        name: 'No Vigentes (%)',
-        data: noVigentesData
-      }
-    ],
-    chart: {
-      type: 'bar',
-      height: 350,
-      stacked: true,
-      stackType: '100%'
-    },
-    colors: ['#28a745', '#dc3545'],
-    plotOptions: {
-      bar: {
-        horizontal: false,
-        dataLabels: {
-          enabled: true,
-          formatter: function(val) {
-            return val + '%';
-          }
+    
+    if (entries.length === 0) {
+      el.innerHTML = '<p class="text-center text-muted">No hay datos disponibles</p>';
+      return;
+    }
+    
+    // Preparar datos para el gráfico de barras apiladas
+    const labels = entries.map(e => e[0]);
+    const vigentesData = entries.map(e => {
+      const porcentaje = e[1].total > 0 ? (e[1].vigentes / e[1].total) * 100 : 0;
+      return Math.round(porcentaje);
+    });
+    
+    const noVigentesData = entries.map(e => {
+      const porcentaje = e[1].total > 0 ? (e[1].noVigentes / e[1].total) * 100 : 0;
+      return Math.round(porcentaje);
+    });
+    
+    el.innerHTML = '';
+    
+    const options = {
+      series: [
+        {
+          name: 'Vigentes (%)',
+          data: vigentesData
+        },
+        {
+          name: 'No Vigentes (%)',
+          data: noVigentesData
         }
-      }
-    },
-    xaxis: {
-      categories: labels,
-      title: {
-        text: 'Tipo de Norma'
-      }
-    },
-    yaxis: {
-      title: {
-        text: 'Porcentaje (%)'
+      ],
+      chart: {
+        type: 'bar',
+        height: 350,
+        stacked: true,
+        stackType: '100%'
       },
-      max: 100
-    },
-    legend: {
-      position: 'bottom'
-    },
-    tooltip: {
-      y: {
-        formatter: function (val) {
-          return val + '%';
-        }
-      }
-    },
-    responsive: [
-      {
-        breakpoint: 480,
-        options: {
-          chart: { height: 300 },
-          xaxis: {
-            labels: {
-              rotate: -45
+      colors: ['#28a745', '#dc3545'],
+      plotOptions: {
+        bar: {
+          horizontal: false,
+          dataLabels: {
+            enabled: true,
+            formatter: function(val) {
+              return val > 0 ? val + '%' : '';
             }
           }
         }
-      }
-    ]
-  };
-  
-  const el = document.querySelector('#chartTipoNormaVigencia');
-  if (!el) return;
-  el.innerHTML = '';
-  const chart = new ApexCharts(el, options);
-  chart.render();
+      },
+      xaxis: {
+        categories: labels,
+        title: {
+          text: 'Tipo de Norma'
+        }
+      },
+      yaxis: {
+        title: {
+          text: 'Porcentaje (%)'
+        },
+        max: 100
+      },
+      legend: {
+        position: 'bottom'
+      },
+      tooltip: {
+        y: {
+          formatter: function (val) {
+            return val + '%';
+          }
+        }
+      },
+      responsive: [
+        {
+          breakpoint: 480,
+          options: {
+            chart: { height: 300 },
+            xaxis: {
+              labels: {
+                rotate: -45
+              }
+            }
+          }
+        }
+      ]
+    };
+    
+    if (typeof ApexCharts !== 'undefined') {
+      const chart = new ApexCharts(el, options);
+      chart.render();
+      console.log('✓ Gráfica de distribución renderizada');
+    } else {
+      console.error('ApexCharts no está cargado');
+    }
+  } catch (error) {
+    console.error('Error al renderizar gráfica de vigencia:', error);
+  }
 }
 if (allData.length > 0) {
   populateFilters();
