@@ -102,7 +102,7 @@ function processFile(file) {
 
   // UI: Iniciar tarea
   const taskId = addUploadTask(file);
-  showLoadingOverlay(true);
+  // showLoadingOverlay(true); // Desactivado para permitir trabajo en segundo plano
 
   // Subir con progreso
   estadoNormasService.uploadExcelWithProgress(file, (percent) => {
@@ -146,7 +146,7 @@ function processFile(file) {
     alert('Error al subir el archivo: ' + (error.message || 'Error desconocido'));
   })
   .finally(() => {
-    showLoadingOverlay(false);
+    // showLoadingOverlay(false);
   });
 }
 
@@ -445,11 +445,11 @@ function renderVigentesTable() {
   vigentes.forEach(row => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${row['RED CONOCIMIENTO'] || ''}</td>
-      <td>${row['NOMBRE_NCL'] || ''}</td>
-      <td>${row['Tipo de Norma'] || ''}</td>
-      <td>${row['Mesa Sectorial'] || ''}</td>
-      <td><span class="badge bg-success">${row['Vigencia'] || ''}</span></td>
+      <td>${wrap(row['RED CONOCIMIENTO'])}</td>
+      <td>${wrap(row['NOMBRE_NCL'])}</td>
+      <td>${wrap(row['Tipo de Norma'])}</td>
+      <td>${wrap(row['Mesa Sectorial'])}</td>
+      <td><div class="cell-content"><span class="badge bg-success">${row['Vigencia'] || ''}</span></div></td>
     `;
     vigentesTableBody.appendChild(tr);
   });
@@ -472,11 +472,11 @@ function renderVencidasTable() {
   vencidas.forEach(row => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${row['RED CONOCIMIENTO'] || ''}</td>
-      <td>${row['NOMBRE_NCL'] || ''}</td>
-      <td>${row['Tipo de Norma'] || ''}</td>
-      <td><span class="badge bg-danger">${row['Vigencia'] || ''}</span></td>
-      <td>${row['Fecha de revisión'] || 'N/A'}</td>
+      <td>${wrap(row['RED CONOCIMIENTO'])}</td>
+      <td>${wrap(row['NOMBRE_NCL'])}</td>
+      <td>${wrap(row['Tipo de Norma'])}</td>
+      <td><div class="cell-content"><span class="badge bg-danger">${row['Vigencia'] || ''}</span></div></td>
+      <td>${wrap(row['Fecha de revisión'] || 'N/A')}</td>
     `;
     vencidasTableBody.appendChild(tr);
   });

@@ -98,11 +98,14 @@ let overlayShownAt = 0;
 const MIN_OVERLAY_MS = 500;
 
 function showLoading(text){
+  // showLoadingOverlay desactivado por solicitud del usuario (trabajo en segundo plano)
+  /*
   if (loadingOverlay){
     overlayShownAt = performance.now();
     if (loadingText && text) loadingText.textContent = text;
     loadingOverlay.style.display = 'block';
   }
+  */
 }
 function hideLoading(){
   if (loadingOverlay){
@@ -939,6 +942,7 @@ function showSuccessModal(result) {
 function closeSuccessModal() {
   document.getElementById('successModal').classList.remove('show');
 }
+window.closeSuccessModal = closeSuccessModal;
 
 // Cerrar modal al hacer click fuera
 document.getElementById('successModal').addEventListener('click', (e) => {

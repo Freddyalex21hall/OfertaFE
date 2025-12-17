@@ -107,7 +107,7 @@ async function processFile(file) {
 
     // UI: Iniciar tarea
     const taskId = addUploadTask(file);
-    showLoadingOverlay(true);
+    // showLoadingOverlay(true); // Desactivado para permitir trabajo en segundo plano
 
     // Cargar datos actuales desde API antes de validar duplicados locales
     if (!allData || allData.length === 0) {
@@ -144,7 +144,7 @@ async function processFile(file) {
         alert('Error al subir el archivo: ' + (error.message || 'Error desconocido'));
     })
     .finally(() => {
-        showLoadingOverlay(false);
+        // showLoadingOverlay(false);
     });
 }
 
