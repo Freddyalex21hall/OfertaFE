@@ -1,3 +1,17 @@
+/**
+ * MÓDULO: ESTADO DE NORMAS
+ * Gestión de carga, filtrado, visualización y análisis de normas SENA
+ * 
+ * SECCIONES PRINCIPALES:
+ * 1. Importaciones y Variables Globales
+ * 2. Carga y Almacenamiento de Datos
+ * 3. Gestión de Archivos Excel
+ * 4. Renderización de Tablas
+ * 5. Filtros y Búsqueda
+ * 6. Gráficas y Estadísticas
+ * 7. Inicialización y Eventos
+ */
+
 // ===== IMPORTAR SERVICIOS =====
 import { estadoNormasService } from '../api/estado-normas.service.js';
 
@@ -21,6 +35,8 @@ function loadDataFromMemory() {
   return [];
 }
 
+// ==================== SECCIÓN 2: ALMACENAMIENTO DE DATOS ====================
+
 // ===== GUARDAR DATOS EN SESSIONSTORAGE =====
 function saveDataToMemory() {
   try {
@@ -36,7 +52,7 @@ function saveDataToMemory() {
 allData = loadDataFromMemory();
 filteredData = [...allData];
 
-// ===== ELEMENTOS DEL DOM =====
+// ==================== ELEMENTOS DEL DOM ====================
 const uploadZone = document.getElementById('uploadZone');
 const fileInput = document.getElementById('fileInput');
 const searchAll = document.getElementById('searchAll');
@@ -46,6 +62,8 @@ const vencidasTableBody = document.getElementById('vencidasTableBody');
 const statsContent = document.getElementById('statsContent');
 const totalRecords = document.getElementById('totalRecords');
 const filteredRecords = document.getElementById('filteredRecords');
+
+// ==================== SECCIÓN 3: GESTIÓN DE ARCHIVOS EXCEL ====================
 
 // ===== MANEJO DE CARGA DE ARCHIVOS =====
 uploadZone.addEventListener('click', () => fileInput.click());
@@ -314,6 +332,8 @@ function populateFilters() {
     filterCodigoPrograma: 'CODIGO PROGRAMA'
   };
 
+  // ==================== SECCIÓN 4: RENDERIZACIÓN DE TABLAS ====================
+  
   Object.keys(filters).forEach(filterId => {
     const select = document.getElementById(filterId);
     const field = filters[filterId];
@@ -436,6 +456,8 @@ function renderVencidasTable() {
     vencidasTableBody.appendChild(tr);
   });
 }
+
+// ==================== SECCIÓN 5: FILTROS Y BÚSQUEDA ====================
 
 // ===== ACTUALIZAR ESTADÍSTICAS =====
 function updateStats() {
@@ -872,11 +894,14 @@ document.getElementById('inputPageNumber')?.addEventListener('keydown', (e) => {
   }
 });
 
-// ===== CREAR GRÁFICA DE ESTADO DE VIGENCIA =====
+// ==================== SECCIÓN 6: GRÁFICAS Y ESTADÍSTICAS ====================
+
+// ===== GRÁFICA CIRCULAR: VIGENTES vs NO VIGENTES =====
 function imprimirGraficaTipoNorma(data){
-  // Contar normas vigentes y no vigentes
+  // Contar normas vigentes, no vigentes y no especificadas
   let vigentes = 0;
   let noVigentes = 0;
+  let noEspecificadas = 0;
   
   (Array.isArray(data) ? data : []).forEach(r => {
     const vigencia = r['Vigencia']?.toLowerCase() || '';
@@ -884,58 +909,74 @@ function imprimirGraficaTipoNorma(data){
       vigentes++;
     } else if (vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no')) {
       noVigentes++;
+    } else if (vigencia.trim()) {
+      noEspecificadas++;
     }
   });
   
-  // Calcular porcentajes
-  const total = vigentes + noVigentes;
-  const porcentajeVigentes = total > 0 ? Math.round((vigentes / total) * 100) : 0;
-  const porcentajeNoVigentes = total > 0 ? Math.round((noVigentes / total) * 100) : 0;
+  // Preparar datos para la gráfica
+  const series = [];
+  const labels = [];
+  const colors = [];
   
-  // Preparar etiquetas con porcentajes
-  const labels = [
-    `Vigentes (${porcentajeVigentes}%)`,
-    `No Vigentes (${porcentajeNoVigentes}%)`
-  ];
+  if (vigentes > 0) {
+    series.push(vigentes);
+    labels.push(`Vigentes (${vigentes})`);
+    colors.push('#28a745');
+  }
   
-  const series = [vigentes, noVigentes];
+  if (noVigentes > 0) {
+    series.push(noVigentes);
+    labels.push(`No Vigentes (${noVigentes})`);
+    colors.push('#dc3545');
+  }
+  
+  if (noEspecificadas > 0) {
+    series.push(noEspecificadas);
+    labels.push(`No Especificadas (${noEspecificadas})`);
+    colors.push('#6c757d');
+  }
+  
+  // Si no hay datos, mostrar placeholder
+  if (series.length === 0) {
+    const el = document.querySelector('#chartTipoNorma');
+    if (el) el.innerHTML = '<p class="text-center text-muted">Sin datos disponibles</p>';
+    return;
+  }
   
   const options = {
-    series: series.length && total > 0 ? series : [1, 1],
-    chart: { width: 420, type: 'pie' },
-    labels: labels.length ? labels : ['Vigentes', 'No Vigentes'],
-    colors: ['#28a745', '#dc3545'], // Verde para vigentes, rojo para no vigentes
+    series: series,
+    chart: { 
+      type: 'pie',
+      width: 420
+    },
+    labels: labels,
+    colors: colors,
     plotOptions: {
       pie: {
         dataLabels: {
           enabled: true,
-          formatter: function(val) {
-            return Math.round(val) + '%';
+          formatter: function(val, opts) {
+            return opts.w.globals.series[opts.seriesIndex];
           }
         }
       }
     },
     legend: {
-      position: 'bottom',
-      formatter: function(seriesName) {
-        return seriesName;
+      position: 'bottom'
+    },
+    tooltip: {
+      y: {
+        formatter: function (val) {
+          return val + ' normas';
+        }
       }
     },
     responsive: [{ 
       breakpoint: 480, 
       options: { 
         chart: { width: 260 }, 
-        legend: { position: 'bottom' },
-        plotOptions: {
-          pie: {
-            dataLabels: {
-              enabled: true,
-              formatter: function(val) {
-                return Math.round(val) + '%';
-              }
-            }
-          }
-        }
+        legend: { position: 'bottom' }
       } 
     }]
   };
@@ -947,7 +988,6 @@ function imprimirGraficaTipoNorma(data){
   chart.render();
 }
 
-<<<<<<< HEAD
 // ===== CREAR GRÁFICA DE DISTRIBUCIÓN POR TIPO DE NORMA CON VIGENCIA =====
 function imprimirGraficaTipoNormaVigencia(data) {
   // Crear estructura: tipos[tipoNorma] = { vigentes: 0, noVigentes: 0 }
@@ -1071,9 +1111,6 @@ if (allData.length > 0) {
   updateStats();
 }
 
-export function Init() {
-  if (allData.length > 0) {
-=======
 // ===== CARGAR DATOS DESDE LA API =====
 async function fetchEstadoNormasFromAPI() {
   try {
@@ -1111,7 +1148,6 @@ async function fetchEstadoNormasFromAPI() {
       console.log(`✓ ${allData.length} registros cargados desde la API`);
     }
     
->>>>>>> 25e03f206b7c5a76a199d9e229175d7485e5c8cc
     populateFilters();
     renderTable();
     updateStats();
