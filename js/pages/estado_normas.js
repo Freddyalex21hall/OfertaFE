@@ -432,10 +432,7 @@ function getVigenciaBadge(vigencia) {
 function renderVigentesTable() {
   vigentesTableBody.innerHTML = '';
   
-  const vigentes = filteredData.filter(row => {
-    const vigencia = row['Vigencia']?.toLowerCase() || '';
-    return vigencia.includes('vigente') || vigencia.includes('activo') || vigencia.includes('sí');
-  });
+  const vigentes = filteredData.filter(row => classifyVigencia(row['Vigencia']) === 'vigentes');
 
   if (vigentes.length === 0) {
     vigentesTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay normas vigentes</td></tr>';
