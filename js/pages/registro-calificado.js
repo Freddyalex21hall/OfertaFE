@@ -47,33 +47,10 @@ function canonicalize(normKey) {
 }
 
 
-// ===== CARGAR DATOS DESDE LOCALSTORAGE AL INICIO =====
-function loadDataFromMemory() {
-    try {
-        const dataStr = localStorage.getItem('registrosCalificados');
-        if (dataStr) {
-            return JSON.parse(dataStr);
-        }
-    } catch (e) {
-        console.error('Error al cargar datos:', e);
-    }
-    return [];
-}
-
-// ===== GUARDAR DATOS EN LOCALSTORAGE =====
-function saveDataToMemory() {
-    try {
-        const dataStr = JSON.stringify(allData);
-        localStorage.setItem('registrosCalificados', dataStr);
-        localStorage.setItem('registrosCalificadosLastUpdate', new Date().toISOString());
-    } catch (e) {
-        console.error('Error al guardar datos:', e);
-    }
-}
-
 // ===== INICIALIZAR DATOS =====
-allData = loadDataFromMemory();
-filteredData = [...allData];
+// Los datos se cargarán desde la API al inicio
+allData = [];
+filteredData = [];
 
 // ===== ELEMENTOS DEL DOM =====
 const uploadZone = document.getElementById('uploadZone');
@@ -121,102 +98,298 @@ fileInput.addEventListener('change', (e) => {
 });
 
 // ===== PROCESAR ARCHIVO EXCEL =====
-function processFile(file) {
-        const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '', raw: false });
-                    if (!jsonData || jsonData.length === 0) {
-                alert('El archivo no contiene datos válidos');
-                return;
-            }
-                    // Mapear columnas del archivo a los encabezados del HTML
-                    const HEADERS = getHEADERS();
-                    // Construir conjunto de headers del archivo (unión de claves presentes)
-                    const fileHeaderSet = new Set();
-                    jsonData.slice(0, 20).forEach(row => Object.keys(row).forEach(k => fileHeaderSet.add(k))); // primeras 20 filas bastan
-                    const fileHeaders = Array.from(fileHeaderSet);
-                    // Mapa: encabezado HTML -> header del archivo que mejor coincide
-                    const mapHtmlToFile = new Map();
-                    const normalizedFileMap = new Map(); // norm -> original
-                    fileHeaders.forEach(h => {
-                        const norm = canonicalize(normalize(h));
-                        if (!normalizedFileMap.has(norm)) normalizedFileMap.set(norm, h);
-                    });
-                    HEADERS.forEach(h => {
-                        const normH = canonicalize(normalize(h));
-                        if (normalizedFileMap.has(normH)) {
-                            mapHtmlToFile.set(h, normalizedFileMap.get(normH));
-                        } else {
-                            // intentar coincidencia por inclusión parcial
-                            const candidate = fileHeaders.find(fh => normalize(fh).includes(normH) || normH.includes(normalize(fh)));
-                            if (candidate) mapHtmlToFile.set(h, candidate);
-                        }
-                    });
+async function processFile(file) {
+    const name = file?.name || '';
+    if (!/\.(xlsx|xls)$/i.test(name)) {
+        alert('Formato de archivo no soportado. Por favor, sube un Excel (.xlsx o .xls).');
+        return;
+    }
 
-                    // Transformar filas del archivo a objetos con solo HEADERS del HTML
-                            const transformed = jsonData.map(row => {
-                        const obj = {};
-                        HEADERS.forEach(h => {
-                            const sourceKey = mapHtmlToFile.get(h);
-                                    let val = sourceKey ? (row[sourceKey] ?? '') : '';
-                                    // Normalizar fechas para columnas clave
-                                    if (['FECHA DE RESOLUCIÓN','Fecha de vencimiento','FECHA RADICADO'].includes(h)) {
-                                        val = normalizeDate(val);
-                                    }
-                                    obj[h] = val;
-                        });
-                        return obj;
-                    });
+    // UI: Iniciar tarea
+    const taskId = addUploadTask(file);
+    showLoadingOverlay(true);
 
-                    // Agregar datos evitando duplicados
-                    const result = addDataWithoutDuplicates(transformed, HEADERS);
-            currentPage = 1;
-            saveDataToMemory();
-                          populateFilters();
-            renderTable();
-            updateStats();
-            showSuccessModal(result);
-        } catch (error) {
-            console.error('Error procesando archivo:', error);
-            alert('Error al procesar el archivo Excel. Verifica el formato.');
-        }
-    };
-    reader.readAsArrayBuffer(file);
+    // Cargar datos actuales desde API antes de validar duplicados locales
+    if (!allData || allData.length === 0) {
+        try { await fetchRegistrosCalificados(); } catch (_) {}
+    }
+
+    const prevTotal = allData.length;
+
+    // Subir con progreso
+    registroCalificadoService.uploadExcelWithProgress(file, (percent) => {
+        updateUploadProgress(taskId, percent);
+    })
+    .then(async (response) => {
+        console.log('Respuesta upload:', response);
+        // Recargar datos desde la API para reflejar lo guardado en BD
+        await fetchRegistrosCalificados();
+        
+        completeUploadTask(taskId, true, 'Completado');
+        
+        // Intentar mostrar estadísticas si están disponibles
+        const stats = deriveStatsFromBackend(response);
+        const modalResult = buildModalResult({
+            backendStats: stats,
+            localResult: {}, // No calculamos localmente para simplificar
+            processed: 0,
+            prevTotal,
+            newTotal: allData.length
+        });
+        showSuccessModal(modalResult);
+    })
+    .catch((error) => {
+        console.error('Error al subir:', error);
+        completeUploadTask(taskId, false, error.message || 'Error');
+        alert('Error al subir el archivo: ' + (error.message || 'Error desconocido'));
+    })
+    .finally(() => {
+        showLoadingOverlay(false);
+    });
 }
 
-// ===== AGREGAR DATOS SIN DUPLICADOS =====
-function addDataWithoutDuplicates(newData, HEADERS = getHEADERS()) {
+// ===== UPLOAD TRAY LOGIC =====
+const loadingOverlay = document.getElementById('loadingOverlay');
+const uploadsTray = document.getElementById('uploadsTray');
+const btnUploads = document.getElementById('btnUploads');
+const uploadsPanel = document.getElementById('uploadsPanel');
+const uploadsList = document.getElementById('uploadsList');
+const uploadAlert = document.getElementById('uploadAlert');
+
+let activeUploads = new Map();
+
+if (btnUploads) {
+    btnUploads.addEventListener('click', () => {
+        if (uploadsPanel) uploadsPanel.style.display = uploadsPanel.style.display === 'none' ? 'block' : 'none';
+    });
+}
+
+function showLoadingOverlay(show) {
+    if (loadingOverlay) loadingOverlay.style.display = show ? 'block' : 'none';
+}
+
+function addUploadTask(file) {
+    const id = Date.now() + Math.random().toString(36).substr(2, 9);
+    activeUploads.set(id, { name: file.name, progress: 0, status: 'pending' });
+    renderUploadsList();
+    if (uploadsPanel && uploadsPanel.style.display === 'none') {
+        uploadsPanel.style.display = 'block';
+    }
+    return id;
+}
+
+function updateUploadProgress(id, percent) {
+    const task = activeUploads.get(id);
+    if (task) {
+        task.progress = percent;
+        task.status = 'uploading';
+        renderUploadsList();
+    }
+}
+
+function completeUploadTask(id, success, message) {
+    const task = activeUploads.get(id);
+    if (task) {
+        task.progress = 100;
+        task.status = success ? 'success' : 'error';
+        task.message = message;
+        renderUploadsList();
+        
+        if (uploadAlert) {
+            uploadAlert.className = `alert alert-${success ? 'success' : 'danger'} py-1 px-2`;
+            uploadAlert.textContent = success ? 'Carga completada' : 'Error en la carga';
+            uploadAlert.style.display = 'block';
+            setTimeout(() => { uploadAlert.style.display = 'none'; }, 3000);
+        }
+    }
+}
+
+function renderUploadsList() {
+    if (!uploadsList) return;
+    uploadsList.innerHTML = '';
+    if (activeUploads.size === 0) {
+        uploadsList.innerHTML = '<div class="list-group-item text-muted small">No hay subidas en curso</div>';
+        return;
+    }
+    const tasks = Array.from(activeUploads.entries()).reverse();
+    tasks.forEach(([id, task]) => {
+        const item = document.createElement('div');
+        item.className = 'list-group-item p-2';
+        let statusIcon = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
+        let statusClass = 'text-primary';
+        if (task.status === 'success') {
+            statusIcon = '<i class="fas fa-check-circle text-success"></i>';
+            statusClass = 'text-success';
+        } else if (task.status === 'error') {
+            statusIcon = '<i class="fas fa-times-circle text-danger"></i>';
+            statusClass = 'text-danger';
+        }
+        item.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <div class="text-truncate small fw-bold" style="max-width: 180px;" title="${task.name}">${task.name}</div>
+                ${statusIcon}
+            </div>
+            <div class="progress" style="height: 4px;">
+                <div class="progress-bar ${task.status === 'error' ? 'bg-danger' : 'bg-primary'}" role="progressbar" style="width: ${task.progress}%"></div>
+            </div>
+            <div class="d-flex justify-content-between mt-1">
+                <small class="${statusClass}" style="font-size: 0.75rem;">${task.status === 'uploading' ? task.progress + '%' : (task.status === 'success' ? 'Completado' : 'Error')}</small>
+                ${task.message ? `<small class="text-muted ms-2 text-truncate" style="max-width: 100px; font-size: 0.75rem;" title="${task.message}">${task.message}</small>` : ''}
+            </div>
+        `;
+        uploadsList.appendChild(item);
+    });
+}
+
+// ===== VERIFICAR DUPLICADOS =====
+function normalizeKeyValue(val) {
+    if (val === null || val === undefined) return '';
+    let s = String(val).trim();
+    // Normalizar fechas a YYYY/MM/DD si parecen fechas
+    const maybeDate = normalizeDate(s);
+    if (maybeDate && /\d{4}\/[01]\d\/[0-3]\d/.test(maybeDate)) s = maybeDate;
+    return normalize(s); // mayúsculas, sin tildes, espacios compactados
+}
+
+function pickFirst(row, candidates) {
+    for (const key of candidates) {
+        if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
+            return row[key];
+        }
+    }
+    return '';
+}
+
+function buildRowKey(row) {
+    // Intentar claves robustas presentes en Excel y API
+    const code = normalizeKeyValue(pickFirst(row, [
+        'COD DEL PROGRAMA', 'CODIGO PROGRAMA', 'CÓDIGO PROGRAMA', 'CODIGO DEL PROGRAMA', 'SNIES', 'CÓDIGO SNIES', 'CODIGO SNIES'
+    ]));
+    const nres = normalizeKeyValue(pickFirst(row, [
+        'NUMERO DE RESOLUCION', 'NOMBRE DE RESOLUCIÓN', 'NOMBRE DE RESOLUCION'
+    ]));
+    const fres = normalizeKeyValue(pickFirst(row, [
+        'FECHA DE RESOLUCIÓN', 'FECHA RESOLUCION'
+    ]));
+    // Si no hay suficientes campos, usar combinación con fecha radicado
+    const frad = normalizeKeyValue(pickFirst(row, [
+        'FECHA RADICADO'
+    ]));
+    const modality = normalizeKeyValue(pickFirst(row, [
+        'MODALIDAD'
+    ]));
+
+    // Clave principal: código + número resolución + fecha resolución
+    if (code || nres || fres) {
+        return [code, nres, fres].join('|');
+    }
+    // Alternativa: código + fecha radicado + modalidad
+    if (code || frad) {
+        return [code, frad, modality].join('|');
+    }
+    // Fallback: concatenar todas las columnas conocidas de forma normalizada
+    return Object.keys(row).sort().map(k => `${k}:${normalizeKeyValue(row[k])}`).join('||');
+}
+
+function checkDuplicates(newData, HEADERS = getHEADERS()) {
     let addedCount = 0;
     let duplicateCount = 0;
     const totalInFile = newData.length;
 
+    // Construir set de claves existentes
+    const existingKeys = new Set(allData.map(buildRowKey));
+
     newData.forEach(newRow => {
-        // Verificar si el registro ya existe (todas las columnas iguales)
-        const isDuplicate = allData.some(existingRow => {
-            return HEADERS.every(h => (existingRow[h] || '') === (newRow[h] || ''));
-        });
-        if (isDuplicate) {
+        const key = buildRowKey(newRow);
+        if (existingKeys.has(key)) {
             duplicateCount++;
         } else {
-            // Solo guardar los campos definidos en HEADERS
-            const cleanRow = {};
-            HEADERS.forEach(h => { cleanRow[h] = newRow[h] || ''; });
-            allData.push(cleanRow);
             addedCount++;
+            existingKeys.add(key);
         }
     });
-
-    filteredData = [...allData];
 
     return {
         totalInFile,
         addedCount,
         duplicateCount,
         totalInSystem: allData.length
+    };
+}
+
+// ===== Helpers para interpretar métricas del backend y fusionarlas con conteos locales =====
+function toNumber(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+}
+
+function firstNumber(candidates = []) {
+    for (const c of candidates) {
+        const num = toNumber(c);
+        if (num !== null) return num;
+    }
+    return null;
+}
+
+function deriveStatsFromBackend(payload) {
+    const stats = { addedCount: null, duplicateCount: null, totalInSystem: null, totalInFile: null };
+    const sources = [payload, payload?.data, payload?.result, payload?.payload];
+
+    const pick = (src, keys) => {
+        for (const k of keys) {
+            const num = toNumber(src?.[k]);
+            if (num !== null) return num;
+        }
+        return null;
+    };
+
+    sources.forEach(src => {
+        if (!src || typeof src !== 'object') return;
+        if (stats.addedCount === null) {
+            stats.addedCount = pick(src, [
+                'nuevos', 'nuevos_registros', 'insertados', 'inserted', 'creados', 'created',
+                'guardados', 'registros_guardados', 'registros_creados', 'added', 'added_count', 'created_count'
+            ]) ?? (Array.isArray(src.insertados) ? src.insertados.length : null) ?? (Array.isArray(src.created) ? src.created.length : null);
+        }
+        if (stats.duplicateCount === null) {
+            stats.duplicateCount = pick(src, [
+                'duplicados', 'duplicates', 'repetidos', 'ya_existian', 'registros_duplicados', 'duplicados_count'
+            ]) ?? (Array.isArray(src.duplicados) ? src.duplicados.length : null) ?? (Array.isArray(src.duplicates) ? src.duplicates.length : null);
+        }
+        if (stats.totalInSystem === null) {
+            stats.totalInSystem = pick(src, [
+                'total', 'total_en_sistema', 'total_en_bd', 'total_registros', 'total_records', 'total_bd'
+            ]);
+        }
+        if (stats.totalInFile === null) {
+            stats.totalInFile = pick(src, [
+                'total_archivo', 'procesados', 'procesados_archivo', 'total_en_archivo', 'total_file', 'count_file', 'filas_leidas'
+            ]);
+        }
+    });
+
+    return stats;
+}
+
+async function uploadFileToBackend(file) {
+    const uploadResponse = await registroCalificadoService.uploadExcel(file);
+    const stats = deriveStatsFromBackend(uploadResponse);
+    return { payload: uploadResponse, stats };
+}
+
+function buildModalResult({ backendStats = {}, localResult = {}, processed = 0, prevTotal = 0, newTotal = allData.length }) {
+    const addedFromDiff = Math.max(newTotal - prevTotal, 0);
+    const addedCount = firstNumber([backendStats.addedCount, addedFromDiff, localResult.addedCount]);
+    const duplicateCount = firstNumber([backendStats.duplicateCount, localResult.duplicateCount, 0]);
+    const totalInFile = firstNumber([backendStats.totalInFile, localResult.totalInFile, processed]);
+    const totalInSystem = firstNumber([backendStats.totalInSystem, newTotal, allData.length]);
+
+    return {
+        totalInFile: totalInFile ?? processed,
+        addedCount: addedCount ?? 0,
+        duplicateCount: duplicateCount ?? 0,
+        totalInSystem: totalInSystem ?? newTotal ?? allData.length
     };
 }
 
@@ -231,10 +404,23 @@ function mapApiDataToTable(apiRows = []) {
             FECHA_RADICADO: normalizeDate(row.fecha_radicado ?? ''),
             NUMERO_RESOLUCION: row.numero_resolucion ?? row.num_resolucion ?? '',
             FECHA_RESOLUCION: normalizeDate(row.fecha_resolucion ?? ''),
+            RESUELVE: row.resuelve ?? '',
             SNIES: row.snies ?? row.codigo_snies ?? row.cod_programa ?? '',
             FECHA_VENCIMIENTO: normalizeDate(row.fecha_vencimiento ?? ''),
+            VIGENCIA_RC: row.vigencia_rc ?? '',
             CODIGO_PROGRAMA: row.codigo_programa ?? row.cod_programa ?? '',
-            MODALIDAD: row.modalidad ?? row.modalidad_formacion ?? ''
+            NOMBRE_PROGRAMA: row.nombre_programa ?? row.programa ?? '',
+            NIVEL_FORMACION: row.nivel_formacion ?? row.nivel ?? '',
+            RED_CONOCIMIENTO: row.red_conocimiento ?? row.red ?? '',
+            MODALIDAD: row.modalidad ?? row.modalidad_formacion ?? '',
+            CENTRO_FORMACION: row.centro_formacion ?? row.centro ?? '',
+            NOMBRE_SEDE: row.nombre_sede ?? row.sede ?? '',
+            TIPO_SEDE: row.tipo_sede ?? '',
+            MUNICIPIO: row.municipio ?? '',
+            LUGAR_DESARROLLO: row.lugar_desarrollo ?? '',
+            REGIONAL: row.regional ?? '',
+            NOMBRE_REGIONAL: row.nombre_regional ?? '',
+            CLASIFICACION_TRAMITE: row.clasificacion_tramite ?? ''
         };
 
         const mapped = {};
@@ -355,12 +541,56 @@ function renderTable() {
 
     const startIdx = (currentPage - 1) * PAGE_SIZE;
     const pageRows = filteredData.slice(startIdx, startIdx + PAGE_SIZE);
+    const vencCol = HEADERS.find(h => normalize(h) === normalize('Fecha de vencimiento')) || 'Fecha de vencimiento';
+    
     pageRows.forEach(row => {
         const tr = document.createElement('tr');
         tr.innerHTML = HEADERS.map(h => `<td>${row[h] || ''}</td>`).join('');
+        
+        // Aplicar color según estado de vigencia
+        const fechaVenc = row[vencCol];
+        const estado = getEstadoVigencia(fechaVenc);
+        
+        if (estado === 'vencido') {
+            tr.style.backgroundColor = '#ffcccc'; // Rojo claro
+            tr.classList.add('table-danger');
+        } else if (estado === 'por-vencer') {
+            tr.style.backgroundColor = '#fff9cc'; // Amarillo claro
+            tr.classList.add('table-warning');
+        } else if (estado === 'vigente') {
+            tr.style.backgroundColor = '#d4edda'; // Verde claro
+            tr.classList.add('table-success');
+        }
+        
         tableBody.appendChild(tr);
     });
     renderPagination();
+}
+
+// ===== DETERMINAR ESTADO DE VIGENCIA =====
+function getEstadoVigencia(fechaVencimiento) {
+    if (!fechaVencimiento) {
+        return null;
+    }
+    
+    const fechaVenc = parseYMD(fechaVencimiento);
+    if (!fechaVenc) {
+        return null;
+    }
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const in30 = new Date(today);
+    in30.setDate(in30.getDate() + 30);
+    
+    if (fechaVenc < today) {
+        return 'vencido';
+    } else if (fechaVenc >= today && fechaVenc <= in30) {
+        return 'por-vencer';
+    } else {
+        return 'vigente';
+    }
 }
 
 // ===== Normalización de fechas =====
@@ -474,6 +704,75 @@ if (nextPageBtn) {
 function updateStats() {
     totalRecords.textContent = allData.length;
     filteredRecords.textContent = filteredData.length;
+    updateVigenciaBar();
+}
+
+// ===== ACTUALIZAR BARRA DE VIGENCIA =====
+function updateVigenciaBar() {
+    const HEADERS = getHEADERS();
+    const vencCol = HEADERS.find(h => normalize(h) === normalize('Fecha de vencimiento')) || 'Fecha de vencimiento';
+    
+    let countVencidos = 0;
+    let countPorVencer = 0;
+    let countVigentes = 0;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const in30 = new Date(today);
+    in30.setDate(in30.getDate() + 30);
+    
+    allData.forEach(row => {
+        const fechaVenc = parseYMD(row[vencCol]);
+        if (!fechaVenc) return;
+        
+        if (fechaVenc < today) {
+            countVencidos++;
+        } else if (fechaVenc >= today && fechaVenc <= in30) {
+            countPorVencer++;
+        } else {
+            countVigentes++;
+        }
+    });
+    
+    const total = countVencidos + countPorVencer + countVigentes;
+    const percentVencidos = total > 0 ? ((countVencidos / total) * 100).toFixed(1) : 0;
+    const percentPorVencer = total > 0 ? ((countPorVencer / total) * 100).toFixed(1) : 0;
+    const percentVigentes = total > 0 ? ((countVigentes / total) * 100).toFixed(1) : 0;
+    
+    // Actualizar las barras
+    const barVencidos = document.getElementById('barVencidos');
+    const barPorVencer = document.getElementById('barPorVencer');
+    const barVigentes = document.getElementById('barVigentes');
+    
+    if (barVencidos) {
+        barVencidos.style.width = `${percentVencidos}%`;
+        barVencidos.setAttribute('aria-valuenow', percentVencidos);
+    }
+    
+    if (barPorVencer) {
+        barPorVencer.style.width = `${percentPorVencer}%`;
+        barPorVencer.setAttribute('aria-valuenow', percentPorVencer);
+    }
+    
+    if (barVigentes) {
+        barVigentes.style.width = `${percentVigentes}%`;
+        barVigentes.setAttribute('aria-valuenow', percentVigentes);
+    }
+    
+    // Actualizar los contadores de texto
+    const countVencidosEl = document.getElementById('countVencidos');
+    const countPorVencerEl = document.getElementById('countPorVencer');
+    const countVigentesEl = document.getElementById('countVigentes');
+    const percentVencidosEl = document.getElementById('percentVencidos');
+    const percentPorVencerEl = document.getElementById('percentPorVencer');
+    const percentVigentesEl = document.getElementById('percentVigentes');
+    
+    if (countVencidosEl) countVencidosEl.textContent = countVencidos;
+    if (countPorVencerEl) countPorVencerEl.textContent = countPorVencer;
+    if (countVigentesEl) countVigentesEl.textContent = countVigentes;
+    if (percentVencidosEl) percentVencidosEl.textContent = `${percentVencidos}%`;
+    if (percentPorVencerEl) percentPorVencerEl.textContent = `${percentPorVencer}%`;
+    if (percentVigentesEl) percentVigentesEl.textContent = `${percentVigentes}%`;
 }
 
 // ===== APLICAR FILTROS =====
@@ -547,8 +846,6 @@ if (clearAllBtn) {
             allData = [];
             filteredData = [];
             currentPage = 1;
-            localStorage.removeItem('registrosCalificados');
-            localStorage.removeItem('registrosCalificadosLastUpdate');
             renderTable();
             updateStats();
             alert('✓ Todos los datos han sido borrados');
@@ -575,37 +872,35 @@ function extractApiArray(payload) {
 // ===== CARGAR DESDE BACKEND =====
 async function fetchRegistrosCalificados() {
     try {
+        console.log('Cargando datos desde la API...');
         const res = await registroCalificadoService.getAll();
         const data = extractApiArray(res);
         if (!Array.isArray(data) || data.length === 0) {
             console.warn('Respuesta sin registros o con formato no esperado', res);
-            return;
+            allData = [];
+            filteredData = [];
+        } else {
+            allData = mapApiDataToTable(data);
+            filteredData = [...allData];
+            console.log(`✓ ${allData.length} registros cargados desde la API`);
         }
-        allData = mapApiDataToTable(data);
-        filteredData = [...allData];
         currentPage = 1;
-        saveDataToMemory();
         populateFilters();
         renderTable();
         updateStats();
     } catch (error) {
         console.error('Error cargando registros calificados desde API:', error);
+        allData = [];
+        filteredData = [];
+        renderTable();
+        updateStats();
     }
 }
 
 // ===== RENDER INICIAL =====
 document.addEventListener('DOMContentLoaded', async () => {
-    // Migrar posibles registros antiguos guardados como arrays a objetos con headers actuales
-    const HEADERS = getHEADERS();
-    if (Array.isArray(allData) && allData.length && Array.isArray(allData[0])) {
-        allData = allData.map(arr => {
-            const obj = {};
-            HEADERS.forEach((h, i) => obj[h] = arr[i] ?? '');
-            return obj;
-        });
-        saveDataToMemory();
-        filteredData = [...allData];
-    }
+    // Cargar datos desde la API cada vez que se carga la página
+    console.log('Página cargada. Iniciando carga de datos desde la API...');
     renderTable();
     updateStats();
     await fetchRegistrosCalificados();
@@ -616,12 +911,19 @@ function populateFilters() {
     try {
         const tipos = new Set();
         const radicados = new Set();
-        const modalidades = new Set(['PRESENCIAL', 'VIRTUAL']);
+        const modalidades = new Set();
 
+        // Poblar valores reales desde la base de datos
         allData.forEach(row => {
-            if (row['TIPO DE TRAMITE']) tipos.add(row['TIPO DE TRAMITE']);
-            if (row['FECHA RADICADO']) radicados.add(row['FECHA RADICADO']);
+            if (row['TIPO DE TRAMITE']) tipos.add(String(row['TIPO DE TRAMITE']).trim());
+            if (row['FECHA RADICADO']) radicados.add(String(row['FECHA RADICADO']).trim());
             if (row['MODALIDAD']) modalidades.add(String(row['MODALIDAD']).toUpperCase().trim());
+        });
+
+        console.log('Filtros poblados:', {
+            tipos: Array.from(tipos),
+            radicados: Array.from(radicados),
+            modalidades: Array.from(modalidades)
         });
 
         const fill = (selectEl, values) => {

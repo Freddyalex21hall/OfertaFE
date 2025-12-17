@@ -81,38 +81,148 @@ function processFile(file) {
     alert('Formato de archivo no soportado. Por favor, suba un Excel (.xlsx o .xls).');
     return;
   }
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
-      
-      if (!jsonData || jsonData.length === 0) {
-        alert('El archivo no contiene datos válidos');
-        return;
-      }
 
-      // Detectar duplicados
-      const result = addDataWithoutDuplicates(jsonData);
-      
-      saveDataToMemory();
-      
-      populateFilters();
-      renderTable();
-      updateStats();
-      
-      // Enviar archivo al backend
-      uploadFileToBackend(file, result);
-      
-      showSuccessModal(result);
-    } catch (error) {
-      console.error('Error procesando archivo:', error);
-      alert('Error al procesar el archivo Excel. Verifica el formato.');
+  // UI: Iniciar tarea
+  const taskId = addUploadTask(file);
+  showLoadingOverlay(true);
+
+  // Subir con progreso
+  estadoNormasService.uploadExcelWithProgress(file, (percent) => {
+    updateUploadProgress(taskId, percent);
+  })
+  .then((response) => {
+    console.log('Respuesta upload:', response);
+    // Asumimos que el backend devuelve los datos o confirmación
+    // Si el backend no devuelve los datos procesados, leemos localmente para actualizar la tabla
+    
+    // Leer localmente para refrescar la UI (híbrido)
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+            
+            if (jsonData.length > 0) {
+                const result = addDataWithoutDuplicates(jsonData);
+                saveDataToMemory();
+                populateFilters();
+                renderTable();
+                updateStats();
+                
+                completeUploadTask(taskId, true, 'Completado');
+                showSuccessModal(result);
+            }
+        } catch(err) {
+            console.error('Error local processing:', err);
+            completeUploadTask(taskId, true, 'Subido (Error visualización)');
+        }
+    };
+    reader.readAsArrayBuffer(file);
+
+  })
+  .catch((error) => {
+    console.error('Error al subir:', error);
+    completeUploadTask(taskId, false, error.message || 'Error');
+    alert('Error al subir el archivo: ' + (error.message || 'Error desconocido'));
+  })
+  .finally(() => {
+    showLoadingOverlay(false);
+  });
+}
+
+// ===== UPLOAD TRAY LOGIC =====
+const loadingOverlay = document.getElementById('loadingOverlay');
+const uploadsTray = document.getElementById('uploadsTray');
+const btnUploads = document.getElementById('btnUploads');
+const uploadsPanel = document.getElementById('uploadsPanel');
+const uploadsList = document.getElementById('uploadsList');
+const uploadAlert = document.getElementById('uploadAlert');
+
+let activeUploads = new Map();
+
+if (btnUploads) {
+    btnUploads.addEventListener('click', () => {
+        if (uploadsPanel) uploadsPanel.style.display = uploadsPanel.style.display === 'none' ? 'block' : 'none';
+    });
+}
+
+function showLoadingOverlay(show) {
+    if (loadingOverlay) loadingOverlay.style.display = show ? 'block' : 'none';
+}
+
+function addUploadTask(file) {
+    const id = Date.now() + Math.random().toString(36).substr(2, 9);
+    activeUploads.set(id, { name: file.name, progress: 0, status: 'pending' });
+    renderUploadsList();
+    if (uploadsPanel && uploadsPanel.style.display === 'none') {
+        uploadsPanel.style.display = 'block';
     }
-  };
-  reader.readAsArrayBuffer(file);
+    return id;
+}
+
+function updateUploadProgress(id, percent) {
+    const task = activeUploads.get(id);
+    if (task) {
+        task.progress = percent;
+        task.status = 'uploading';
+        renderUploadsList();
+    }
+}
+
+function completeUploadTask(id, success, message) {
+    const task = activeUploads.get(id);
+    if (task) {
+        task.progress = 100;
+        task.status = success ? 'success' : 'error';
+        task.message = message;
+        renderUploadsList();
+        
+        if (uploadAlert) {
+            uploadAlert.className = `alert alert-${success ? 'success' : 'danger'} py-1 px-2`;
+            uploadAlert.textContent = success ? 'Carga completada' : 'Error en la carga';
+            uploadAlert.style.display = 'block';
+            setTimeout(() => { uploadAlert.style.display = 'none'; }, 3000);
+        }
+    }
+}
+
+function renderUploadsList() {
+    if (!uploadsList) return;
+    uploadsList.innerHTML = '';
+    if (activeUploads.size === 0) {
+        uploadsList.innerHTML = '<div class="list-group-item text-muted small">No hay subidas en curso</div>';
+        return;
+    }
+    const tasks = Array.from(activeUploads.entries()).reverse();
+    tasks.forEach(([id, task]) => {
+        const item = document.createElement('div');
+        item.className = 'list-group-item p-2';
+        let statusIcon = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
+        let statusClass = 'text-primary';
+        if (task.status === 'success') {
+            statusIcon = '<i class="fas fa-check-circle text-success"></i>';
+            statusClass = 'text-success';
+        } else if (task.status === 'error') {
+            statusIcon = '<i class="fas fa-times-circle text-danger"></i>';
+            statusClass = 'text-danger';
+        }
+        item.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <div class="text-truncate small fw-bold" style="max-width: 180px;" title="${task.name}">${task.name}</div>
+                ${statusIcon}
+            </div>
+            <div class="progress" style="height: 4px;">
+                <div class="progress-bar ${task.status === 'error' ? 'bg-danger' : 'bg-primary'}" role="progressbar" style="width: ${task.progress}%"></div>
+            </div>
+            <div class="d-flex justify-content-between mt-1">
+                <small class="${statusClass}" style="font-size: 0.75rem;">${task.status === 'uploading' ? task.progress + '%' : (task.status === 'success' ? 'Completado' : 'Error')}</small>
+                ${task.message ? `<small class="text-muted ms-2 text-truncate" style="max-width: 100px; font-size: 0.75rem;" title="${task.message}">${task.message}</small>` : ''}
+            </div>
+        `;
+        uploadsList.appendChild(item);
+    });
 }
 
 // ===== ENVIAR ARCHIVO AL BACKEND =====
@@ -131,27 +241,15 @@ async function uploadFileToBackend(file, processingResult) {
       console.warn('⚠️ No hay token de autenticación. La carga podría fallar.');
     }
     
-    const backendResponse = await estadoNormasService.uploadEstadoNormas(file);
+    const backendResponse = await estadoNormasService.uploadExcel(file);
     
     console.log('✓ Respuesta recibida del backend:');
     console.log(JSON.stringify(backendResponse, null, 2));
     
-    // Guardar información de carga exitosa
-    const uploadInfo = {
-      fileName: file.name,
-      fileSize: file.size,
-      processingResult,
-      backendResponse,
-      status: 'success',
-      timestamp: new Date().toISOString()
-    };
-    
-    estadoNormasService.saveUploadInfo(uploadInfo);
+    // Recargar datos desde la API después de la carga exitosa
+    await fetchEstadoNormasFromAPI();
     
     console.log('✓ Archivo subido exitosamente al backend');
-    console.log('Información de carga guardada en localStorage');
-    
-    // Mostrar alerta de éxito en console
     console.info('%c✓ CARGA EXITOSA', 'color: green; font-weight: bold; font-size: 14px;');
     console.info('El archivo se ha sincronizado correctamente con la base de datos');
     
@@ -159,18 +257,6 @@ async function uploadFileToBackend(file, processingResult) {
     console.error('=== ERROR AL ENVIAR ARCHIVO ===');
     console.error('Mensaje de error:', error.message);
     console.error('Stack:', error.stack);
-    
-    // Guardar información de carga fallida para análisis
-    const uploadInfo = {
-      fileName: file.name,
-      fileSize: file.size,
-      processingResult,
-      status: 'failed',
-      error: error.message,
-      timestamp: new Date().toISOString()
-    };
-    
-    estadoNormasService.saveUploadInfo(uploadInfo);
     
     console.warn('%c⚠️ El archivo se procesó localmente pero no se sincronizó con el backend', 'color: orange; font-weight: bold;');
     console.warn('Detalles del error:', error.message);
@@ -250,7 +336,7 @@ function renderTable() {
   if (filteredData.length === 0) {
     tableBody.innerHTML = `
       <tr>
-        <td colspan="14" class="text-center text-muted py-5">
+        <td colspan="6" class="text-center text-muted py-5">
           <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
           <p>No se encontraron resultados</p>
         </td>
@@ -270,14 +356,6 @@ function renderTable() {
       <td>${row['RED CONOCIMIENTO'] || ''}</td>
       <td>${row['NOMBRE_NCL'] || ''}</td>
       <td>${row['CODIGO NCL'] || row['NCL CODIGO'] || ''}</td>
-      <td>${row['NCL VERSION'] || ''}</td>
-      <td>${row['Norma corte a NOVIEMBRE'] || ''}</td>
-      <td>${row['Versión'] || ''}</td>
-      <td>${row['Norma - Versión'] || ''}</td>
-      <td>${row['Mesa Sectorial'] || ''}</td>
-      <td>${row['Tipo de Norma'] || ''}</td>
-      <td>${row['Observación'] || ''}</td>
-      <td>${row['Fecha de revisión'] || ''}</td>
       <td>${row['Tipo de competencia'] || ''}</td>
       <td><span class="badge ${getVigenciaBadge(row['Vigencia'])}">${row['Vigencia'] || ''}</span></td>
       <td>${row['Fecha de Elaboración'] || ''}</td>
@@ -869,6 +947,7 @@ function imprimirGraficaTipoNorma(data){
   chart.render();
 }
 
+<<<<<<< HEAD
 // ===== CREAR GRÁFICA DE DISTRIBUCIÓN POR TIPO DE NORMA CON VIGENCIA =====
 function imprimirGraficaTipoNormaVigencia(data) {
   // Crear estructura: tipos[tipoNorma] = { vigentes: 0, noVigentes: 0 }
@@ -994,8 +1073,68 @@ if (allData.length > 0) {
 
 export function Init() {
   if (allData.length > 0) {
+=======
+// ===== CARGAR DATOS DESDE LA API =====
+async function fetchEstadoNormasFromAPI() {
+  try {
+    console.log('Cargando datos desde la API...');
+    const res = await estadoNormasService.getAll();
+    
+    // Extraer el array de datos de diferentes estructuras de respuesta
+    const data = Array.isArray(res) ? res : (res?.data || res?.items || res?.records || []);
+    
+    if (!Array.isArray(data) || data.length === 0) {
+      console.warn('Respuesta sin registros o formato no esperado', res);
+      allData = [];
+      filteredData = [];
+    } else {
+      // Mapear datos del backend al formato esperado por la tabla
+      allData = data.map(row => ({
+        'RED CONOCIMIENTO': row.red_conocimiento || row.red || '',
+        'NOMBRE_NCL': row.nombre_ncl || row.nombre || '',
+        'CODIGO NCL': row.codigo_ncl || row.codigo || '',
+        'NCL VERSION': row.version || row.ncl_version || '',
+        'Norma corte a NOVIEMBRE': row.norma_corte || '',
+        'Versión': row.version || '',
+        'Norma - Versión': row.norma_version || `${row.codigo_ncl || ''} - ${row.version || ''}`,
+        'Mesa Sectorial': row.mesa_sectorial || row.mesa || '',
+        'Tipo de Norma': row.tipo_norma || row.tipo || '',
+        'Observación': row.observacion || '',
+        'Fecha de revisión': row.fecha_revision || '',
+        'Tipo de competencia': row.tipo_competencia || '',
+        'Vigencia': row.vigencia || '',
+        'Fecha de Elaboración': row.fecha_elaboracion || '',
+        'CODIGO PROGRAMA': row.codigo_programa || ''
+      }));
+      filteredData = [...allData];
+      saveDataToMemory(); // Guardar en sessionStorage
+      console.log(`✓ ${allData.length} registros cargados desde la API`);
+    }
+    
+>>>>>>> 25e03f206b7c5a76a199d9e229175d7485e5c8cc
     populateFilters();
     renderTable();
     updateStats();
+  } catch (error) {
+    console.error('Error cargando estado de normas desde API:', error);
+    // Si falla la API, intentar cargar desde sessionStorage
+    allData = loadDataFromMemory();
+    filteredData = [...allData];
+    if (allData.length > 0) {
+      console.info('Usando datos guardados localmente');
+      populateFilters();
+      renderTable();
+      updateStats();
+    }
   }
+}
+
+// ===== INICIALIZACIÓN =====
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('Página cargada. Iniciando carga de datos desde la API...');
+  await fetchEstadoNormasFromAPI();
+});
+
+export function Init() {
+  fetchEstadoNormasFromAPI();
 }

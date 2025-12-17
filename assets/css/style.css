@@ -6,27 +6,10 @@ body {
   background-color: #f5f5f5;
 }
 
-/* ===== HEADER ===== */
-.header-bg {
-  background: linear-gradient(90deg, #28a745, #007bff);
-  color: white;
-  padding: 15px 20px;
-}
+/*ESTE ES EL FOOTER*/
 
-.nav-item a {
-  color: white !important;
-  font-weight: 500;
-  text-decoration: none;
-  transition: opacity 0.3s;
-}
 
-.nav-item a:hover {
-  opacity: 0.8;
-}
 
-.nav-item a.active {
-  text-decoration: underline;
-}
 
 /* ===== SUB NAVEGACIÓN ===== */
 .sub-nav {
@@ -507,3 +490,177 @@ body {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }
 }
+
+.header-bg {
+      background: linear-gradient(90deg, #28a745, #007bff);
+      color: white;
+      padding: 15px 20px;
+    }
+    .nav-item a {
+      color: white !important;
+      font-weight: 500;
+    }
+    .filter-panel {
+      background: #f8f9fa;
+      border-right: 1px solid #dee2e6;
+      padding: 20px;
+      height: calc(100vh - 150px);
+      overflow-y: auto;
+    }
+    .content-panel {
+      padding: 20px;
+      background: white;
+      height: calc(100vh - 150px);
+      overflow-y: auto;
+    }
+    .btn-tab {
+      background: #0056b3;
+      color: white;
+      border: none;
+      margin-right: 8px;
+      margin-bottom: 8px;
+      font-weight: bold;
+      padding: 8px 16px;
+    }
+    .btn-tab.active {
+      background: #003d7a;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+    .table th, .table td {
+      vertical-align: middle;
+    }
+    .semaphore {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    .semaphore-green { background: #28a745; }
+    .semaphore-yellow { background: #ffc107; }
+    .semaphore-red { background: #dc3545; }
+
+    /* Ocultar tablas por defecto */
+    .sub-table {
+      display: none;
+    }
+    .sub-table.active {
+      display: block;
+    }
+
+    .footer-sena {
+  position: relative;
+  /* Fondo múltiple: primero la imagen, luego el degradado */
+  /*background-image: 
+    url('assets/images/sena.jpg'), 
+    linear-gradient(90deg, var(--sena-primary), var(--neutral-500));*/
+  background: linear-gradient(90deg, #28a745, #007bff);
+  background-size: cover, cover;          /* Tamaño de cada fondo */
+  background-position: center, center;    /* Posición de cada fondo */
+  background-repeat: no-repeat, no-repeat;/* Evita repetición de ambos */
+  
+  color: var(--sena-accent);
+  overflow: hidden;
+  border-top-left-radius: 40px;
+  border-top-right-radius: 40px;
+  margin-top: 2rem;
+}
+
+.footer-top {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+}
+
+.footer-logo {
+  max-width: 150px;
+}
+
+.footer-title {
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 0.75rem;
+}
+
+.footer-links a {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+}
+
+.footer-links a:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.contact-info li {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.social-links a {
+  font-size: 1.4rem;
+  color: var(--sena-accent);
+  margin-right: 10px;
+  transition: color 0.3s ease;
+}
+
+.social-links a:hover {
+  color: #fff;
+}
+
+.footer-bottom {
+  background: rgba(0,0,0,0.15);
+  color: #f5f9ff;
+  z-index: 1;
+  position: relative;
+}
+
+/* ===== HEADER ===== */
+.header-bg {
+  background: linear-gradient(90deg, #28a745, #007bff);
+  color: white;
+  padding: 15px 20px;
+}
+
+.nav-item a {
+  color: white !important;
+  font-weight: 500;
+  text-decoration: none;
+  transition: opacity 0.3s;
+}
+
+.nav-item a:hover {
+  opacity: 0.8;
+}
+
+.nav-item a.active {
+  text-decoration: underline;
+}
+    .social-links {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .social-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white !important;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      font-size: 0.9rem;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .social-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .social-facebook { background-color: #3b5998; }
+    .social-x { background-color: #000000; }
+    .social-instagram { background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%); }
+    .social-youtube { background-color: #ff0000; }
+    .social-linkedin { background-color: #0077b5; }

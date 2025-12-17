@@ -13,6 +13,38 @@ export const panelService = {
         fd.append('file', file);
         return request(`/cargar/upload-excel-historico/`, { method: 'POST', body: fd });
     },
+    uploadExcelHistoricoWithProgress: (file, onProgress) => {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            const url = 'https://oferta-production-44e9.up.railway.app/cargar/upload-excel-historico/';
+            const token = localStorage.getItem('access_token');
+            xhr.open('POST', url);
+            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable && typeof onProgress === 'function') {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    onProgress(percent, e.loaded, e.total);
+                }
+            };
+            xhr.onreadystatechange = () => {
+                if (xhr.readyState === 4) {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try { resolve(JSON.parse(xhr.responseText)); } catch { resolve({}); }
+                    } else {
+                        let msg = xhr.statusText || 'Error al subir archivo';
+                        try {
+                            const j = JSON.parse(xhr.responseText);
+                            msg = j.detail || j.message || msg;
+                        } catch {}
+                        reject(new Error(msg));
+                    }
+                }
+            };
+            const fd = new FormData();
+            fd.append('file', file);
+            xhr.send(fd);
+        });
+    },
     porGrupo: (id_grupo) => request(`/historico/obtener-por-grupo/${id_grupo}`),
     porFicha: (ficha) => request(`/historico/obtener-por-ficha/${ficha}`),
     porCodPrograma: (cod_programa) => request(`/historico/obtener-por-cod_programa/${cod_programa}`),

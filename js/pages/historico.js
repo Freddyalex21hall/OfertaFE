@@ -143,6 +143,70 @@ fileInput.addEventListener('change', (e) => {
   if (file) processFile(file);
 });
 
+// ===== SUBIDAS EN SEGUNDO PLANO =====
+const uploadsPanel = document.getElementById('uploadsPanel');
+const uploadsList = document.getElementById('uploadsList');
+const btnUploads = document.getElementById('btnUploads');
+btnUploads?.addEventListener('click', () => {
+  if (!uploadsPanel) return;
+  console.log('[Historico] Toggle panel subidas. Estado actual:', uploadsPanel.style.display, 'Lista:', uploads);
+  uploadsPanel.style.display = uploadsPanel.style.display === 'none' ? 'block' : 'none';
+});
+let uploads = [];
+function renderUploads(){
+  if (!uploadsList) return;
+  if (uploads.length === 0){
+    uploadsList.innerHTML = '<div class="list-group-item text-muted small">No hay subidas en curso</div>';
+    return;
+  }
+  uploadsList.innerHTML = uploads.map((u,i) => `
+    <div class="list-group-item">
+      <div class="d-flex justify-content-between"><span class="small">${u.name}</span><span class="small">${Math.round((u.size||0)/1024)} KB</span></div>
+      <div class="progress mt-1" style="height:6px;">
+        <div class="progress-bar ${u.status==='error'?'bg-danger':(u.status==='completado'?'bg-success':'')}" role="progressbar" style="width:${u.percent||0}%"></div>
+      </div>
+      <div class="d-flex justify-content-between align-items-center mt-1">
+        <div class="small text-muted">${u.status}${u.message? ' - '+u.message:''}</div>
+        ${u.status==='error' ? `<button class="btn btn-sm btn-outline-primary btn-retry-upload" data-idx="${i}">Reintentar</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+function showUploadAlert(type, text){
+  const el = document.getElementById('uploadAlert');
+  if (!el) return;
+  el.className = `alert alert-${type} alert-dismissible fade show py-1 px-2`;
+  el.textContent = text;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+uploadsList?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.btn-retry-upload');
+  if (!btn) return;
+  const idx = parseInt(btn.dataset.idx,10);
+  const item = uploads[idx];
+  if (item && item.file){
+    showUploadAlert('info','Reintentando subida...');
+    addUploadTask(item.file);
+  }
+});
+async function addUploadTask(file){
+  const item = { name:file.name, size:file.size, percent:0, status:'subiendo', message:'', file };
+  uploads.unshift(item);
+  renderUploads();
+  try{
+    await panelService.uploadExcelHistoricoWithProgress(file, (p)=>{ item.percent = p; renderUploads(); });
+    item.status='procesando'; renderUploads();
+    await fetchHistoricoTodos();
+    item.percent = 100;
+    item.status='completado'; item.message='Datos actualizados'; renderUploads();
+    showUploadAlert('success','Archivo subido correctamente');
+  }catch(err){
+    item.status='error'; item.message=err?.message||'Error al subir'; renderUploads();
+    showUploadAlert('danger', item.message);
+  }
+}
+
 // ===== PROCESAR ARCHIVO EXCEL =====
 async function processFile(file) {
   const name = file?.name || '';
@@ -150,77 +214,7 @@ async function processFile(file) {
     alert('Formato de archivo no soportado. Por favor, suba un Excel (.xlsx o .xls).');
     return;
   }
-  showLoading('Preparando archivo...');
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    try {
-      showLoading('Leyendo archivo...');
-      await new Promise(r => setTimeout(r, 0));
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      showLoading('Procesando Excel...');
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
-      
-      if (!jsonData || jsonData.length === 0) {
-        hideLoading();
-        alert('El archivo no contiene datos válidos');
-        return;
-      }
-
-      function getField(row, keys){
-        const map = {};
-        for (const k in row){ map[normalizeText(k)] = row[k]; }
-        for (const key of keys){
-          const v = map[normalizeText(key)];
-          if (v !== undefined && v !== null) return v;
-        }
-        return undefined;
-      }
-      function isValidRowRegional(row){
-        const cod = getField(row,['cod_regional','codigo_regional','codigo de regional','codigo regional','cod regional']);
-        const nom = getField(row,['nombre_regional','regional','nombre de regional','nombre regional']);
-        const codNum = parseInt(cod);
-        const nomNorm = normalizeText(nom);
-        return codNum === 66 && nomNorm.includes('risaralda');
-      }
-      const validRows = jsonData.filter(isValidRowRegional);
-      const invalidCount = jsonData.length - validRows.length;
-      if (validRows.length === 0){
-        hideLoading();
-        alert('El archivo no contiene registros de la Regional 66 - RISARALDA. No se subirá.');
-        return;
-      }
-
-      try{
-        if (invalidCount > 0) throw new Error('Archivo contiene registros de otras regionales');
-        showLoading('Subiendo al servidor...');
-        const res = await panelService.uploadExcelHistorico(file);
-        console.log('[Historico][Upload Response]', res);
-        showLoading('Actualizando datos del servidor...');
-        await fetchHistoricoTodos();
-        hideLoading();
-        alert('✓ Archivo subido y datos actualizados desde el servidor');
-        return;
-      }catch(uploadErr){
-        console.error('Error al subir a la API, se mostrará localmente:', uploadErr);
-      }
-
-      showLoading('Integrando registros localmente (RISARALDA)...');
-      const result = await addDataWithoutDuplicatesChunked(validRows);
-      saveDataToMemory();
-      populateFilters();
-      renderTable();
-      updateStats();
-      hideLoading();
-      showSuccessModal(result);
-    } catch (error) {
-      console.error('Error procesando archivo:', error);
-      hideLoading();
-      alert('Error al procesar el archivo Excel. Verifica el formato.');
-    }
-  };
-  reader.readAsArrayBuffer(file);
+  addUploadTask(file);
 }
 
 async function addDataWithoutDuplicatesChunked(newData){

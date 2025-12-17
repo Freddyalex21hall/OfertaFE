@@ -52,6 +52,39 @@ export const catalogoService = {
         }
     },
 
+    uploadExcelCatalogoWithProgress: (file, onProgress) => {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            const url = `${API_BASE_URL}/catalogo/upload-excel-catalogo-programas/`;
+            const token = localStorage.getItem('access_token');
+            xhr.open('POST', url);
+            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable && typeof onProgress === 'function') {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    onProgress(percent, e.loaded, e.total);
+                }
+            };
+            xhr.onreadystatechange = () => {
+                if (xhr.readyState === 4) {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try { resolve(JSON.parse(xhr.responseText)); } catch { resolve({}); }
+                    } else {
+                        let msg = xhr.statusText || 'Error al subir archivo';
+                        try {
+                            const j = JSON.parse(xhr.responseText);
+                            msg = j.detail || j.message || msg;
+                        } catch {}
+                        reject(new Error(msg));
+                    }
+                }
+            };
+            const fd = new FormData();
+            fd.append('file', file);
+            xhr.send(fd);
+        });
+    },
+
     /**
      * Obtener información del último catálogo cargado (si existe endpoint)
      * @returns {Promise<object>}
@@ -81,6 +114,50 @@ export const catalogoService = {
             localStorage.setItem('last_catalogo_upload', JSON.stringify(info));
         } catch (error) {
             console.error('Error al guardar información de carga:', error);
+        }
+    },
+
+    /**
+     * Obtener todos los programas de formación
+     * @returns {Promise<Array>}
+     */
+    obtenerTodosProgramas: async () => {
+        const url = `${API_BASE_URL}/programas_formacion/listar`;
+        const token = localStorage.getItem('access_token');
+
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'accept': 'application/json'
+                }
+            });
+
+            // Manejo de errores HTTP
+            if (response.status === 401) {
+                console.error('No tiene permisos para realizar esta acción');
+                throw new Error('No autorizado');
+            }
+
+            if (response.status === 403) {
+                console.error('Token inválido');
+                throw new Error('Token inválido');
+            }
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ 
+                    detail: 'Ocurrió un error al obtener los programas.' 
+                }));
+                throw new Error(errorData.detail || 'Error al obtener los programas');
+            }
+
+            const data = await response.json();
+            return Array.isArray(data) ? data : (data.data || []);
+
+        } catch (error) {
+            console.error('Error en obtenerTodosProgramas:', error);
+            throw error;
         }
     }
 };
