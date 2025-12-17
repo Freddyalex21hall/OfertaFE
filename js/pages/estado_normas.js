@@ -604,17 +604,18 @@ function updateStats() {
 
 // ===== APLICAR FILTROS =====
 document.getElementById('applyFilters').addEventListener('click', () => {
-  const searchAllValue = searchAll.value.toLowerCase();
-  const redConocimiento = document.getElementById('filterRedConocimiento').value;
-  const nombreNCL = document.getElementById('filterNombreNCL').value;
-  const tipoNorma = document.getElementById('filterTipoNorma').value;
-  const mesaSectorial = document.getElementById('filterMesaSectorial').value;
-  const tipoCompetencia = document.getElementById('filterTipoCompetencia').value;
-  const vigencia = document.getElementById('filterVigencia').value;
-  const codigoPrograma = document.getElementById('filterCodigoPrograma').value;
-  const ano = document.getElementById('filterAno').value;
-  const fechaDesde = document.getElementById('filterFechaElaboracionDe').value;
-  const fechaHasta = document.getElementById('filterFechaElaboracionHasta').value;
+  const searchAllValue = (searchAll?.value || '').toLowerCase();
+  const redConocimiento = document.getElementById('filterRedConocimiento')?.value || '';
+  const nombreNCL = document.getElementById('filterNombreNCL')?.value || '';
+  const tipoNorma = document.getElementById('filterTipoNorma')?.value || '';
+  const mesaSectorial = document.getElementById('filterMesaSectorial')?.value || '';
+  const tipoCompetencia = document.getElementById('filterTipoCompetencia')?.value || '';
+  const vigencia = document.getElementById('filterVigencia')?.value || '';
+  const codigoPrograma = document.getElementById('filterCodigoPrograma')?.value || '';
+  // En este layout no existe #filterAno en el panel izquierdo; si no existe, tratamos como "Todos"
+  const ano = document.getElementById('filterAno')?.value || '';
+  const fechaDesde = document.getElementById('filterFechaElaboracionDe')?.value || '';
+  const fechaHasta = document.getElementById('filterFechaElaboracionHasta')?.value || '';
 
   filteredData = allData.filter(row => {
     const matchSearch = !searchAllValue || Object.values(row).some(val => 
@@ -626,15 +627,12 @@ document.getElementById('applyFilters').addEventListener('click', () => {
     const matchMesa = !mesaSectorial || row['Mesa Sectorial'] === mesaSectorial;
     const matchCompetencia = !tipoCompetencia || row['Tipo de competencia'] === tipoCompetencia;
     
-    // Filtro vigencia (Activo/Inactivo)
+    // Filtro vigencia (Activo/Inactivo) usando clasificador exclusivo
     let matchVigencia = true;
     if (vigencia) {
-      const vigiValue = row['Vigencia']?.toLowerCase() || '';
-      if (vigencia === 'Activo') {
-        matchVigencia = vigiValue.includes('vigente') || vigiValue.includes('activo') || vigiValue.includes('sí');
-      } else if (vigencia === 'Inactivo') {
-        matchVigencia = vigiValue.includes('vencido') || vigiValue.includes('expirado') || vigiValue.includes('no') || vigiValue.includes('inactivo');
-      }
+      const cat = classifyVigencia(row['Vigencia']);
+      if (vigencia === 'Activo') matchVigencia = (cat === 'vigentes');
+      else if (vigencia === 'Inactivo') matchVigencia = (cat === 'noVigentes');
     }
     
     const matchCodigoPrograma = !codigoPrograma || row['CODIGO PROGRAMA'] === codigoPrograma;
