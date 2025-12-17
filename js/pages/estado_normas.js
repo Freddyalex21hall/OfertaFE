@@ -1112,25 +1112,10 @@ function imprimirGraficaTipoNorma(data){
       } 
     }]
   };
-    const cat = classifyVigencia(row['Vigencia']);
-    const label = formatVigenciaLabel(cat);
-    tr.innerHTML = `
-      <td>${row['RED CONOCIMIENTO'] || ''}</td>
-      <td>${row['NOMBRE_NCL'] || ''}</td>
-      <td>${row['CODIGO NCL'] || row['NCL CODIGO'] || ''}</td>
-      <td>${row['NCL VERSION'] || ''}</td>
-      <td>${row['Norma corte a NOVIEMBRE'] || ''}</td>
-      <td>${row['Versión'] || ''}</td>
-      <td>${row['Norma - Versión'] || ''}</td>
-      <td>${row['Mesa Sectorial'] || ''}</td>
-      <td>${row['Tipo de Norma'] || ''}</td>
-      <td>${row['Observación'] || ''}</td>
-      <td>${row['Fecha de revisión'] || ''}</td>
-      <td>${row['Tipo de competencia'] || ''}</td>
-      <td><div class="cell-content"><span class="badge ${getVigenciaBadge(row['Vigencia'])}">${label}</span></div></td>
-      <td>${row['Fecha de Elaboración'] || ''}</td>
-    `;
-    }
+  el.innerHTML = '';
+  const chart = new ApexCharts(el, options);
+  chart.render();
+}
 
 // ===== GRÁFICA POR TIPO DE NORMA (VIGENCIA %) =====
 function imprimirGraficaTipoNormaVigencia(data) {
