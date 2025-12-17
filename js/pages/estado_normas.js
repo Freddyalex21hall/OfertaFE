@@ -425,11 +425,21 @@ function classifyVigencia(vigenciaRaw) {
 
   if (!normalized) return 'noEspecificadas';
 
+  if (normalized.includes('no aplica')) return 'noAplica';
+
   if (
     normalized.includes('no necesita') ||
-    normalized.includes('no requiere') ||
-    normalized.includes('no aplica')
+    normalized.includes('no requiere')
   ) return 'noNecesita';
+
+  if (
+    normalized.includes('no vigente') ||
+    normalized.includes('no-vigente') ||
+    normalized.includes('vencid') ||
+    normalized.includes('expir') ||
+    normalized.includes('inactiv') ||
+    normalized === 'no'
+  ) return 'noVigentes';
 
   if (
     normalized.includes('vigente') ||
@@ -438,16 +448,15 @@ function classifyVigencia(vigenciaRaw) {
     normalized === 'sí'
   ) return 'vigentes';
 
-  if (
-    normalized.includes('vencid') ||
-    normalized.includes('expir') ||
-    normalized.includes('inactiv') ||
-    normalized.includes('no vigente') ||
-    normalized.includes('no-vigente') ||
-    normalized === 'no'
-  ) return 'noVigentes';
-
   return 'noEspecificadas';
+}
+
+function formatVigenciaLabel(category) {
+  if (category === 'vigentes') return 'Vigente';
+  if (category === 'noVigentes') return 'No vigente';
+  if (category === 'noNecesita') return 'No necesita';
+  if (category === 'noAplica') return 'No aplica';
+  return 'No especificada';
 }
 
 function getVigenciaBadge(vigencia) {
@@ -455,6 +464,7 @@ function getVigenciaBadge(vigencia) {
   if (category === 'vigentes') return 'bg-success';
   if (category === 'noVigentes') return 'bg-danger';
   if (category === 'noNecesita') return 'bg-warning';
+  if (category === 'noAplica') return 'bg-secondary';
   return 'bg-secondary'; // noEspecificadas
 }
 
@@ -479,7 +489,7 @@ function renderVigentesTable() {
       <td>${row['NOMBRE_NCL'] || ''}</td>
       <td>${row['Tipo de Norma'] || ''}</td>
       <td>${row['Mesa Sectorial'] || ''}</td>
-      <td><span class="badge bg-success">${row['Vigencia'] || ''}</span></td>
+      <td><span class="badge ${getVigenciaBadge(row['Vigencia'])}">${formatVigenciaLabel(classifyVigencia(row['Vigencia']))}</span></td>
     `;
     vigentesTableBody.appendChild(tr);
   });
@@ -490,9 +500,9 @@ function renderVencidasTable() {
   vencidasTableBody.innerHTML = '';
   
   const vencidas = filteredData.filter(row => {
-    const vigencia = row['Vigencia']?.toLowerCase() || '';
-    return vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no');
-  });
+      const vigencia = classifyVigencia(row['Vigencia']);
+      return vigencia === 'noVigentes';
+    });
 
   if (vencidas.length === 0) {
     vencidasTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay normas vencidas</td></tr>';
@@ -500,15 +510,15 @@ function renderVencidasTable() {
   }
 
   vencidas.forEach(row => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${row['RED CONOCIMIENTO'] || ''}</td>
-      <td>${row['NOMBRE_NCL'] || ''}</td>
-      <td>${row['Tipo de Norma'] || ''}</td>
-      <td><span class="badge bg-danger">${row['Vigencia'] || ''}</span></td>
-      <td>${row['Fecha de revisión'] || 'N/A'}</td>
-    `;
-    vencidasTableBody.appendChild(tr);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${row['RED CONOCIMIENTO'] || ''}</td>
+        <td>${row['NOMBRE_NCL'] || ''}</td>
+        <td>${row['Tipo de Norma'] || ''}</td>
+        <td><span class="badge ${getVigenciaBadge(row['Vigencia'])}">${formatVigenciaLabel(classifyVigencia(row['Vigencia']))}</span></td>
+        <td>${row['Fecha de revisión'] || 'N/A'}</td>
+      `;
+      vencidasTableBody.appendChild(tr);
   });
 }
 
@@ -1102,128 +1112,76 @@ function imprimirGraficaTipoNorma(data){
       } 
     }]
   };
+    const cat = classifyVigencia(row['Vigencia']);
+    const label = formatVigenciaLabel(cat);
+    tr.innerHTML = `
+      <td>${row['RED CONOCIMIENTO'] || ''}</td>
+      <td>${row['NOMBRE_NCL'] || ''}</td>
+      <td>${row['CODIGO NCL'] || row['NCL CODIGO'] || ''}</td>
+      <td>${row['NCL VERSION'] || ''}</td>
+      <td>${row['Norma corte a NOVIEMBRE'] || ''}</td>
+      <td>${row['Versión'] || ''}</td>
+      <td>${row['Norma - Versión'] || ''}</td>
+      <td>${row['Mesa Sectorial'] || ''}</td>
+      <td>${row['Tipo de Norma'] || ''}</td>
+      <td>${row['Observación'] || ''}</td>
+      <td>${row['Fecha de revisión'] || ''}</td>
+      <td>${row['Tipo de competencia'] || ''}</td>
+      <td><div class="cell-content"><span class="badge ${getVigenciaBadge(row['Vigencia'])}">${label}</span></div></td>
+      <td>${row['Fecha de Elaboración'] || ''}</td>
+    `;
+    }
+
+// ===== GRÁFICA POR TIPO DE NORMA (VIGENCIA %) =====
+function imprimirGraficaTipoNormaVigencia(data) {
+  const tipos = {};
+  (Array.isArray(data) ? data : []).forEach(row => {
+    const tipo = row['Tipo de Norma'] || 'Sin Tipo';
+    const cat = classifyVigencia(row['Vigencia']);
+    if (!tipos[tipo]) tipos[tipo] = { vigentes: 0, noVigentes: 0, total: 0 };
+    tipos[tipo].total++;
+    if (cat === 'vigentes') tipos[tipo].vigentes++;
+    else if (cat === 'noVigentes') tipos[tipo].noVigentes++;
+  });
+
+  const entries = Object.entries(tipos).sort((a, b) => b[1].total - a[1].total);
+  const el = document.querySelector('#chartTipoNormaVigencia');
+  if (!el) return;
+
+  if (!entries.length) {
+    el.innerHTML = '<p class="text-center text-muted">No hay datos disponibles</p>';
+    return;
+  }
+
+  const labels = entries.map(e => e[0]);
+  const vigentesData = entries.map(e => e[1].total ? Math.round((e[1].vigentes / e[1].total) * 100) : 0);
+  const noVigentesData = entries.map(e => e[1].total ? Math.round((e[1].noVigentes / e[1].total) * 100) : 0);
+
+  const options = {
+    series: [
+      { name: 'Vigentes (%)', data: vigentesData },
+      { name: 'No Vigentes (%)', data: noVigentesData }
+    ],
+    chart: { type: 'bar', height: 350, stacked: true, stackType: '100%' },
+    colors: ['#28a745', '#dc3545'],
+    plotOptions: {
+      bar: {
+        horizontal: false,
+        dataLabels: { enabled: true, formatter: (val) => `${val}%` }
+      }
+    },
+    xaxis: { categories: labels, title: { text: 'Tipo de Norma' } },
+    yaxis: { title: { text: 'Porcentaje (%)' }, max: 100 },
+    legend: { position: 'bottom' },
+    tooltip: { y: { formatter: (val) => `${val}%` } },
+    responsive: [{ breakpoint: 480, options: { chart: { height: 300 }, xaxis: { labels: { rotate: -45 } } } }]
+  };
+
   el.innerHTML = '';
   const chart = new ApexCharts(el, options);
   chart.render();
 }
 
-// ===== CREAR GRÁFICA DE DISTRIBUCIÓN POR TIPO DE NORMA CON VIGENCIA =====
-function imprimirGraficaTipoNormaVigencia(data) {
-  // Crear estructura: tipos[tipoNorma] = { vigentes: 0, noVigentes: 0 }
-  const tipos = {};
-  
-  (Array.isArray(data) ? data : []).forEach(r => {
-    const tipo = r['Tipo de Norma'] || 'Sin Tipo';
-    const vigencia = r['Vigencia']?.toLowerCase() || '';
-    
-    if (!tipos[tipo]) {
-      tipos[tipo] = { vigentes: 0, noVigentes: 0, total: 0 };
-    }
-    
-    tipos[tipo].total++;
-    
-    if (vigencia.includes('vigente') || vigencia.includes('activo') || vigencia.includes('sí')) {
-      tipos[tipo].vigentes++;
-    } else if (vigencia.includes('vencido') || vigencia.includes('expirado') || vigencia.includes('no')) {
-      tipos[tipo].noVigentes++;
-    }
-  });
-  
-  // Ordenar por total descendente
-  const entries = Object.entries(tipos).sort((a, b) => b[1].total - a[1].total);
-  
-  if (entries.length === 0) {
-    const el = document.querySelector('#chartTipoNormaVigencia');
-    if (el) {
-      el.innerHTML = '<p class="text-center text-muted">No hay datos disponibles</p>';
-    }
-    return;
-  }
-  
-  // Preparar datos para el gráfico de barras apiladas
-  const labels = entries.map(e => e[0]);
-  const vigentesData = entries.map(e => {
-    const porcentaje = e[1].total > 0 ? (e[1].vigentes / e[1].total) * 100 : 0;
-    return Math.round(porcentaje);
-  });
-  
-  const noVigentesData = entries.map(e => {
-    const porcentaje = e[1].total > 0 ? (e[1].noVigentes / e[1].total) * 100 : 0;
-    return Math.round(porcentaje);
-  });
-  
-  const options = {
-    series: [
-      {
-        name: 'Vigentes (%)',
-        data: vigentesData
-      },
-      {
-        name: 'No Vigentes (%)',
-        data: noVigentesData
-      }
-    ],
-    chart: {
-      type: 'bar',
-      height: 350,
-      stacked: true,
-      stackType: '100%'
-    },
-    colors: ['#28a745', '#dc3545'],
-    plotOptions: {
-      bar: {
-        horizontal: false,
-        dataLabels: {
-          enabled: true,
-          formatter: function(val) {
-            return val + '%';
-          }
-        }
-      }
-    },
-    xaxis: {
-      categories: labels,
-      title: {
-        text: 'Tipo de Norma'
-      }
-    },
-    yaxis: {
-      title: {
-        text: 'Porcentaje (%)'
-      },
-      max: 100
-    },
-    legend: {
-      position: 'bottom'
-    },
-    tooltip: {
-      y: {
-        formatter: function (val) {
-          return val + '%';
-        }
-      }
-    },
-    responsive: [
-      {
-        breakpoint: 480,
-        options: {
-          chart: { height: 300 },
-          xaxis: {
-            labels: {
-              rotate: -45
-            }
-          }
-        }
-      }
-    ]
-  };
-  
-  const el = document.querySelector('#chartTipoNormaVigencia');
-  if (!el) return;
-  el.innerHTML = '';
-  const chart = new ApexCharts(el, options);
-  chart.render();
-}
 if (allData.length > 0) {
   populateFilters();
   renderTable();
